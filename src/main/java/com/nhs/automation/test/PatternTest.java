@@ -24,7 +24,7 @@ public class PatternTest {
     // Application constants
     private static final String APP_TITLE = "SystmOne GP:";
     private static final String IMAGE_DIR_PATH = "src/main/resources/images";
-    private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Programming\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
+    private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
     private static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
     
