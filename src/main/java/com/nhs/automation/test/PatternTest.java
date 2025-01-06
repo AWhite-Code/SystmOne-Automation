@@ -207,12 +207,17 @@ public class PatternTest {
     
     private static int getDocumentCount() {
         try {
+            logger.info("Looking for document count pattern for location: {}", currentLocation);
+            logger.info("Using pattern: document_count_{}.png", currentLocation.name().toLowerCase());
+            
             Match countMatch = systmOneWindow.exists(documentCountPattern);
             
             if (countMatch == null) {
-                logger.error("Document count pattern not found");
+                logger.error("Document count pattern not found for location: {}", currentLocation);
                 return -1;
             }
+            
+            logger.info("Found document count pattern at: ({},{})", countMatch.x, countMatch.y);
             
             // Extract document count from larger region to ensure full text capture
             Region textRegion = new Region(
@@ -223,10 +228,14 @@ public class PatternTest {
             );
             
             String countText = textRegion.text();
-            return extractNumberFromText(countText);
+            logger.info("Extracted text from region: '{}'", countText);
+            
+            int count = extractNumberFromText(countText);
+            logger.info("Extracted count: {}", count);
+            return count;
             
         } catch (Exception e) {
-            logger.error("Error getting document count: " + e.getMessage());
+            logger.error("Error getting document count: " + e.getMessage(), e);
             return -1;
         }
     }
