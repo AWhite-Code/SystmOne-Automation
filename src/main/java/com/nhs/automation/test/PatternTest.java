@@ -348,21 +348,33 @@ public class PatternTest {
 
     private static boolean determineLocation() {
         try {
-            // Try Denton patterns first
+            // Try Denton patterns first with higher similarity
             Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(PATTERN_SIMILARITY);
-            if (systmOneWindow.exists(dentonTest) != null) {
-                currentLocation = Location.DENTON;
-                logger.info("Detected Denton location");
-                return true;
-            }
+                .similar(0.95);  // Increased similarity threshold
+            Match dentonMatch = systmOneWindow.exists(dentonTest);
             
-            // Try Wootton patterns
+            // Try Wootton patterns with higher similarity
             Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(PATTERN_SIMILARITY);
-            if (systmOneWindow.exists(woottonTest) != null) {
+                .similar(0.95);  // Increased similarity threshold
+            Match woottonMatch = systmOneWindow.exists(woottonTest);
+            
+            // Compare match scores if both exist
+            if (dentonMatch != null && woottonMatch != null) {
+                if (dentonMatch.getScore() > woottonMatch.getScore()) {
+                    currentLocation = Location.DENTON;
+                    logger.info("Detected Denton location (score: {})", dentonMatch.getScore());
+                } else {
+                    currentLocation = Location.WOOTTON;
+                    logger.info("Detected Wootton location (score: {})", woottonMatch.getScore());
+                }
+                return true;
+            } else if (dentonMatch != null) {
+                currentLocation = Location.DENTON;
+                logger.info("Detected Denton location (score: {})", dentonMatch.getScore());
+                return true;
+            } else if (woottonMatch != null) {
                 currentLocation = Location.WOOTTON;
-                logger.info("Detected Wootton location");
+                logger.info("Detected Wootton location (score: {})", woottonMatch.getScore());
                 return true;
             }
             
