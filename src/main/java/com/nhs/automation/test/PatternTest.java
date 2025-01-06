@@ -114,6 +114,17 @@ public class PatternTest {
                 return false;
             }
             
+            // Add this debug section
+            File[] files = imageDir.listFiles();
+            if (files != null) {
+                logger.info("Found these images in directory:");
+                for (File file : files) {
+                    logger.info(" - {}", file.getName());
+                }
+            } else {
+                logger.error("No files found in image directory");
+            }
+            
             ImagePath.add(imageDir.getAbsolutePath());
             logger.info("Image library initialized: {}", imageDir.getAbsolutePath());
             return true;
@@ -367,8 +378,8 @@ public class PatternTest {
             
             // Try Denton patterns first
             Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(PATTERN_SIMILARITY);
-            logger.info("Checking for Denton pattern with similarity {}", PATTERN_SIMILARITY);
+                .similar(LOCATION_SIMILARITY);
+            logger.info("Checking for Denton pattern with similarity {}", LOCATION_SIMILARITY);
             Match dentonMatch = systmOneWindow.exists(dentonTest);
             
             if (dentonMatch != null) {
@@ -379,8 +390,8 @@ public class PatternTest {
             
             // Try Wootton patterns
             Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(PATTERN_SIMILARITY);
-            logger.info("Checking for Wootton pattern with similarity {}", PATTERN_SIMILARITY);
+                .similar(LOCATION_SIMILARITY);
+            logger.info("Checking for Wootton pattern with similarity {}", LOCATION_SIMILARITY);
             Match woottonMatch = systmOneWindow.exists(woottonTest);
             
             if (woottonMatch != null) {
