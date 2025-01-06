@@ -1,0 +1,21 @@
+# Build outputs
+target/
+*.class
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Logs
+*.log
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Output directory
+SystmOne_Automation_Output/
