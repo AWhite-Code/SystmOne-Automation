@@ -33,7 +33,9 @@ public class PatternTest {
     }    
 
     // Pattern matching settings
-    private static final double PATTERN_SIMILARITY = 0.8;
+    private static final double LOCATION_SIMILARITY = 0.95;
+    private static final double DENTON_SIMILARITY = 0.85;
+    private static final double WOOTTON_SIMILARITY = 0.85;
     private static final long NAVIGATION_DELAY_MS = 200;
     private static final int FOCUS_DELAY_MS = 1000;
     
@@ -129,22 +131,26 @@ public class PatternTest {
             }
             
             String locationSuffix = "_" + currentLocation.name().toLowerCase();
+            double similarity = (currentLocation == Location.DENTON) ? 
+                DENTON_SIMILARITY : WOOTTON_SIMILARITY;
+                
+            logger.info("Initializing patterns for {} with similarity {}", 
+                currentLocation, similarity);
             
             selectionBorderPattern = new Pattern("selection_border" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             printMenuItemPattern = new Pattern("print_menu_item" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             documentCountPattern = new Pattern("document_count" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             saveDialogPattern = new Pattern("save_dialog_title" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             
-            logger.info("All patterns initialized for {} location with similarity: {}", 
-                currentLocation, PATTERN_SIMILARITY);
+            logger.info("All patterns initialized for {} location", currentLocation);
             return true;
             
         } catch (Exception e) {
-            logger.error("Failed to initialize patterns: " + e.getMessage());
+            logger.error("Failed to initialize patterns: " + e.getMessage(), e);
             return false;
         }
     }
