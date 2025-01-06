@@ -357,41 +357,61 @@ public class PatternTest {
 
     private static boolean determineLocation() {
         try {
-            // Try Denton patterns first with higher similarity
+            logger.info("Starting location determination...");
+            
+            // Try Denton patterns first
             Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(0.95);  // Increased similarity threshold
+                .similar(PATTERN_SIMILARITY);
+            logger.info("Checking for Denton pattern with similarity {}", PATTERN_SIMILARITY);
             Match dentonMatch = systmOneWindow.exists(dentonTest);
             
-            // Try Wootton patterns with higher similarity
-            Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(0.95);  // Increased similarity threshold
-            Match woottonMatch = systmOneWindow.exists(woottonTest);
-            
-            // Compare match scores if both exist
-            if (dentonMatch != null && woottonMatch != null) {
-                if (dentonMatch.getScore() > woottonMatch.getScore()) {
-                    currentLocation = Location.DENTON;
-                    logger.info("Detected Denton location (score: {})", dentonMatch.getScore());
-                } else {
-                    currentLocation = Location.WOOTTON;
-                    logger.info("Detected Wootton location (score: {})", woottonMatch.getScore());
-                }
-                return true;
-            } else if (dentonMatch != null) {
-                currentLocation = Location.DENTON;
-                logger.info("Detected Denton location (score: {})", dentonMatch.getScore());
-                return true;
-            } else if (woottonMatch != null) {
-                currentLocation = Location.WOOTTON;
-                logger.info("Detected Wootton location (score: {})", woottonMatch.getScore());
-                return true;
+            if (dentonMatch != null) {
+                logger.info("Found Denton match with score: {}", dentonMatch.getScore());
+            } else {
+                logger.info("No Denton match found");
             }
             
-            logger.error("Could not determine location - no matching patterns found");
-            return false;
+            // Try Wootton patterns
+            Pattern woottonTest = new Pattern("selection_border_wootton.png")
+                .similar(PATTERN_SIMILARITY);
+            logger.info("Checking for Wootton pattern with similarity {}", PATTERN_SIMILARITY);
+            Match woottonMatch = systmOneWindow.exists(woottonTest);
             
+            if (woottonMatch != null) {
+                logger.info("Found Wootton match with score: {}", woottonMatch.getScore());
+            } else {
+                logger.info("No Wootton match found");
+            }
+            
+            // Compare matches
+            if (dentonMatch != null && woottonMatch != null) {
+                logger.info("Found both matches. Comparing scores...");
+                logger.info("Denton score: {} vs Wootton score: {}", 
+                    dentonMatch.getScore(), woottonMatch.getScore());
+                
+                if (dentonMatch.getScore() > woottonMatch.getScore()) {
+                    currentLocation = Location.DENTON;
+                    logger.info("Selected Denton (higher score)");
+                } else {
+                    currentLocation = Location.WOOTTON;
+                    logger.info("Selected Wootton (higher score)");
+                }
+            } else if (dentonMatch != null) {
+                currentLocation = Location.DENTON;
+                logger.info("Only Denton match found, selecting Denton");
+            } else if (woottonMatch != null) {
+                currentLocation = Location.WOOTTON;
+                logger.info("Only Wootton match found, selecting Wootton");
+            } else {
+                logger.error("No matches found for either location");
+                return false;
+            }
+            
+            logger.info("Final location selected: {}", currentLocation);
+            return true;
+                
         } catch (Exception e) {
-            logger.error("Error determining location: " + e.getMessage());
+            logger.error("Error in determineLocation: " + e.getMessage(), e);
             return false;
         }
     }
