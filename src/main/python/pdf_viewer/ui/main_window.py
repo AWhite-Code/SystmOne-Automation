@@ -1,10 +1,12 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QWidget
-
 import sys
 
-app = QApplication(sys.argv)
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtWidgets import QApplication, QMainWindow
 
-window = QWidget()
-window.show()
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-app.exec()
+        self.setWindowTitle("SystmOne PDF Manager")
+
+        self.setMinimumSize(910, 540)
