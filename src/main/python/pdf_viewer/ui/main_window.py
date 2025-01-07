@@ -10,3 +10,4 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SystmOne PDF Manager")
 
         self.setMinimumSize(910, 540)
+        self.showMaximized()
