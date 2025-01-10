@@ -1,2 +1,2 @@
 To run the code:
-mvn exec:java -Dexec.mainClass="com.nhs.test.PatternTest"
+mvn exec:java -Dexec.mainClass="systmone.automation.Application"
