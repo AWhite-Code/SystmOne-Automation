@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -42,9 +41,6 @@ public class PatternTest {
     // UI Detection timeouts (in seconds)
     private static final double MENU_TIMEOUT = 5.0;
     private static final double DIALOG_TIMEOUT = 10.0;
-    
-    // UI Elements
-    private static final String SAVE_DIALOG_TITLE = "Save Print Output As";
     
     // Core components
     private static Location currentLocation;
@@ -113,8 +109,7 @@ public class PatternTest {
                 logger.error("Image directory not found: {}", imageDir.getAbsolutePath());
                 return false;
             }
-            
-            // Add this debug section
+        
             File[] files = imageDir.listFiles();
             if (files != null) {
                 logger.info("Found these images in directory:");
@@ -236,7 +231,7 @@ public class PatternTest {
             
             logger.info("Found document count pattern at: ({},{})", countMatch.x, countMatch.y);
             
-            // Extract document count from larger region to ensure full text capture
+            // Locate the word 'Document' then draw a box around it to fix the number of documents. Drawn to left to avoid page counter
             Region textRegion = new Region(
                 countMatch.x - 50, 
                 countMatch.y, 
@@ -268,6 +263,7 @@ public class PatternTest {
         return -1;
     }
     
+    // THIS METHOD CALLS THE ONE BELOW, I SHOULD, **REALLY** CHANGE THE NAMES
     private static void processDocuments(ProcessingStats stats) {
         logger.info("Starting document processing");
         
