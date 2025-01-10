@@ -244,12 +244,15 @@ public class PatternTest {
     }
     
     private static void processDocument(int index, ProcessingStats stats) 
-            throws FindFailed, InterruptedException {
+        throws FindFailed, InterruptedException {
+        
+        // Find where the current document is
+        logger.debug("Finding current document position");
         Match documentMatch = systmOneWindow.exists(selectionBorderPattern);
         if (documentMatch == null) {
             throw new FindFailed("Failed to find document selection border");
         }
-        
+
         int documentNumber = index + 1;
         logger.info("Processing document {} of {} at: ({},{})", 
             documentNumber,
@@ -257,7 +260,7 @@ public class PatternTest {
             documentMatch.x, 
             documentMatch.y
         );
-        
+
         // Generate the full save path for this document
         String documentPath = Paths.get(outputFolder, "Document" + documentNumber + ".pdf")
             .toString();
@@ -266,10 +269,17 @@ public class PatternTest {
         if (!ClipboardHelper.setClipboardContent(documentPath)) {
             throw new RuntimeException("Failed to copy document path to clipboard");
         }
-        
+
+        // Wait for a moment to ensure UI is stable before clicking
+        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.UI_STABILITY_DELAY_MS);
+
         // Perform the print operation
+        logger.debug("Starting print operation for document {}", documentNumber);
         printDocument(documentMatch, documentPath);
-    }
+
+        // Explicit wait after print operation
+        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.UI_STABILITY_DELAY_MS);
+        }
 
     private static void printDocument(Match documentMatch, String savePath) 
             throws FindFailed {
