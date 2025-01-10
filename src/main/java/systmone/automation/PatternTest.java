@@ -266,19 +266,14 @@ public class PatternTest {
             .toString();
             
         // Copy the path to clipboard for quick access in save dialog
-        setClipboardContent(documentPath);
+        if (!ClipboardHelper.setClipboardContent(documentPath)) {
+            throw new RuntimeException("Failed to copy document path to clipboard");
+        }
         
         // Perform the print operation
         printDocument(documentMatch, documentPath);
     }
-    
-    private static void setClipboardContent(String content) {
-        StringSelection stringSelection = new StringSelection(content);
-        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clipboard.setContents(stringSelection, null);
-        logger.debug("Copied to clipboard: {}", content);
-    }
-    
+
     private static void printDocument(Match documentMatch, String savePath) 
             throws FindFailed {
         // Right click on the document to open context menu
