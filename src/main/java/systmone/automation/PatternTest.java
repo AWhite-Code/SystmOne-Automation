@@ -11,8 +11,6 @@ import java.time.LocalDateTime;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Clipboard;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 
@@ -33,27 +31,6 @@ public class PatternTest {
     
     // Thread-safe kill switch
     private static final AtomicBoolean killSwitch = new AtomicBoolean(false);
-    
-    // Document processing statistics
-    private static class ProcessingStats {
-        int totalDocuments;
-        int processedDocuments;
-        List<DocumentError> errors;
-        
-        ProcessingStats() {
-            this.errors = new ArrayList<>();
-        }
-    }
-    
-    private static class DocumentError {
-        final int documentIndex;
-        final String errorMessage;
-        
-        DocumentError(int index, String message) {
-            this.documentIndex = index;
-            this.errorMessage = message;
-        }
-    }
 
     public static void main(String[] args) {
         ProcessingStats stats = new ProcessingStats();
