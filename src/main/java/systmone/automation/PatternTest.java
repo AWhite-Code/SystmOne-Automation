@@ -8,9 +8,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
-import java.awt.datatransfer.Clipboard;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 
@@ -47,7 +44,7 @@ public class PatternTest {
         } catch (Exception e) {
             logger.error("Critical application failure: " + e.getMessage(), e);
         } finally {
-            generateProcessingSummary(stats);
+            SummaryGenerator.generateProcessingSummary(stats);
         }
     }
     
@@ -301,22 +298,6 @@ public class PatternTest {
     private static void navigateToNextDocument() throws InterruptedException {
         systmOneWindow.type(Key.DOWN);
         TimeUnit.MILLISECONDS.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-    }
-    
-    private static void generateProcessingSummary(ProcessingStats stats) {
-        logger.info("\nProcessing Summary:");
-        logger.info("Total Documents: {}", stats.totalDocuments);
-        logger.info("Successfully Processed: {}", stats.processedDocuments);
-        logger.info("Errors Encountered: {}", stats.errors.size());
-        
-        if (!stats.errors.isEmpty()) {
-            logger.info("\nError Details:");
-            stats.errors.forEach(error -> 
-                logger.info("Document {}: {}", 
-                    error.documentIndex, 
-                    error.errorMessage)
-            );
-        }
     }
 
     private static boolean determineLocation() {
