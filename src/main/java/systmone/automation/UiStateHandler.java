@@ -11,10 +11,9 @@ import org.slf4j.LoggerFactory;
 public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
-    // How many consecutive stable checks we need before considering the UI stable
     private static final int REQUIRED_STABILITY_COUNT = 3;
-    // How long to wait between stability checks (milliseconds)
     private static final int POLL_INTERVAL_MS = 100;
+    private static final int MOVEMENT_GRACE_PERIOD_MS = 500;
     
     private final Region uiRegion;
     private Match lastKnownPosition;
@@ -89,20 +88,49 @@ public class UiStateHandler {
      * @return true if navigation succeeded, false otherwise
      */
     public boolean verifyNavigationComplete(Pattern pattern, double timeout) throws FindFailed {
-        Match newPosition = waitForStableElement(pattern, timeout);
-        
-        if (lastKnownPosition != null) {
-            boolean hasMoved = newPosition.y != lastKnownPosition.y || 
-                             newPosition.x != lastKnownPosition.x;
-            
-            logger.debug("Navigation check - Previous pos: ({}, {}), New pos: ({}, {})", 
-                lastKnownPosition.x, lastKnownPosition.y,
-                newPosition.x, newPosition.y);
-                
-            return hasMoved;
+        try {
+            Thread.sleep(MOVEMENT_GRACE_PERIOD_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         
-        return true; // First navigation always succeeds
+        long startTime = System.currentTimeMillis();
+        long timeoutMs = (long)(timeout * 1000);
+        
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            try {
+                Match currentPosition = uiRegion.exists(pattern);
+                if (currentPosition == null) {
+                    logger.trace("No selection found during navigation check");
+                    Thread.sleep(POLL_INTERVAL_MS);
+                    continue;
+                }
+                
+                if (lastKnownPosition == null) {
+                    lastKnownPosition = currentPosition;
+                    return true;
+                }
+                
+                boolean hasMoved = currentPosition.y != lastKnownPosition.y || 
+                                 currentPosition.x != lastKnownPosition.x;
+                
+                if (hasMoved) {
+                    Match stablePosition = waitForStableElement(pattern, timeout);
+                    lastKnownPosition = stablePosition;
+                    logger.debug("Navigation completed - Selection moved to ({}, {})", 
+                        stablePosition.x, stablePosition.y);
+                    return true;
+                }
+                
+                Thread.sleep(POLL_INTERVAL_MS);
+                
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new FindFailed("Interrupted while verifying navigation");
+            }
+        }
+        
+        throw new FindFailed("Navigation failed - selection did not move to new position");
     }
     
     private boolean isMatchStable(Match lastMatch, Match currentMatch) {

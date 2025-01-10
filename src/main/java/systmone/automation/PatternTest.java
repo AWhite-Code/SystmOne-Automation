@@ -238,7 +238,13 @@ public class PatternTest {
         for (int i = 0; i < stats.totalDocuments && !killSwitch.get(); i++) {
             try {
                 processDocument(i, stats);
-                navigateToNextDocument();
+                
+                // Only attempt navigation if not at the last document
+                if (i < stats.totalDocuments - 1) {
+                    navigateToNextDocument();
+                } else {
+                    logger.info("Reached final document - processing complete");
+                }
                 stats.processedDocuments++;
                 
             } catch (Exception e) {
