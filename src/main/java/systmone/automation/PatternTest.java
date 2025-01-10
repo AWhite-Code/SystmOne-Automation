@@ -1,4 +1,4 @@
-package com.nhs.automation;
+package systmone.automation;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;
