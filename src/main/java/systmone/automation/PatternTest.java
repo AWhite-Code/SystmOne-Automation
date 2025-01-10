@@ -8,7 +8,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Clipboard;
@@ -21,20 +20,6 @@ import systmone.automation.config.*;
 
 public class PatternTest {
     private static final Logger logger = LoggerFactory.getLogger(PatternTest.class);
-    
-    // Application constants
-    private static final String APP_TITLE = "SystmOne GP:";
-    private static final String IMAGE_DIR_PATH = "src/main/resources/images";
-    private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
-    private static final DateTimeFormatter FOLDER_DATE_FORMAT = 
-        DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
-
-    // Pattern matching settings
-    private static final long NAVIGATION_DELAY_MS = 200;
-    private static final int FOCUS_DELAY_MS = 1000;
-    
-    // UI Detection timeouts (in seconds)
-    private static final double MENU_TIMEOUT = 5.0;
     
     // Core components
     private static ApplicationConfig.Location currentLocation;
@@ -98,7 +83,7 @@ public class PatternTest {
     
     private static boolean initializeImageLibrary() {
         try {
-            File imageDir = new File(IMAGE_DIR_PATH).getAbsoluteFile();
+            File imageDir = new File(ApplicationConfig.IMAGE_DIR_PATH).getAbsoluteFile();
             if (!imageDir.exists() || !imageDir.isDirectory()) {
                 logger.error("Image directory not found: {}", imageDir.getAbsolutePath());
                 return false;
@@ -157,8 +142,8 @@ public class PatternTest {
     
     private static boolean initializeOutputDirectory() {
         try {
-            String folderName = LocalDateTime.now().format(FOLDER_DATE_FORMAT);
-            outputFolder = Paths.get(OUTPUT_BASE_PATH, folderName).toString();
+            String folderName = LocalDateTime.now().format(ApplicationConfig.FOLDER_DATE_FORMAT);
+            outputFolder = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName).toString();
             
             Files.createDirectories(Paths.get(outputFolder));
             logger.info("Created output directory: {}", outputFolder);
@@ -172,7 +157,7 @@ public class PatternTest {
     
     private static boolean findAndFocusSystmOne() {
         try {
-            systmOne = new App(APP_TITLE);
+            systmOne = new App(ApplicationConfig.APP_TITLE);
             if (systmOne.window() == null) {
                 logger.error("SystmOne window not found");
                 return false;
@@ -183,7 +168,7 @@ public class PatternTest {
                 systmOneWindow.w, systmOneWindow.h, systmOneWindow.x, systmOneWindow.y);
             
             systmOne.focus();
-            TimeUnit.MILLISECONDS.sleep(FOCUS_DELAY_MS);
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
             return true;
             
         } catch (InterruptedException e) {
@@ -323,7 +308,7 @@ public class PatternTest {
         documentMatch.rightClick();
         
         // Wait for and click the print menu item
-        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, MENU_TIMEOUT);
+        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, ApplicationConfig.MENU_TIMEOUT);
         printMenuItem.click();
         logger.debug("Clicked print menu item");
         
@@ -343,7 +328,7 @@ public class PatternTest {
     
     private static void navigateToNextDocument() throws InterruptedException {
         systmOneWindow.type(Key.DOWN);
-        TimeUnit.MILLISECONDS.sleep(NAVIGATION_DELAY_MS);
+        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
     }
     
     private static void generateProcessingSummary(ProcessingStats stats) {
