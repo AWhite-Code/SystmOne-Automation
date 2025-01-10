@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -24,7 +23,7 @@ public class PatternTest {
     // Application constants
     private static final String APP_TITLE = "SystmOne GP:";
     private static final String IMAGE_DIR_PATH = "src/main/resources/images";
-    private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Programming\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
+    private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
     private static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
     
@@ -33,16 +32,15 @@ public class PatternTest {
     }    
 
     // Pattern matching settings
-    private static final double PATTERN_SIMILARITY = 0.8;
+    private static final double LOCATION_SIMILARITY = 0.95;
+    private static final double DENTON_SIMILARITY = 0.85;
+    private static final double WOOTTON_SIMILARITY = 0.85;
     private static final long NAVIGATION_DELAY_MS = 200;
     private static final int FOCUS_DELAY_MS = 1000;
     
     // UI Detection timeouts (in seconds)
     private static final double MENU_TIMEOUT = 5.0;
     private static final double DIALOG_TIMEOUT = 10.0;
-    
-    // UI Elements
-    private static final String SAVE_DIALOG_TITLE = "Save Print Output As";
     
     // Core components
     private static Location currentLocation;
@@ -111,6 +109,16 @@ public class PatternTest {
                 logger.error("Image directory not found: {}", imageDir.getAbsolutePath());
                 return false;
             }
+        
+            File[] files = imageDir.listFiles();
+            if (files != null) {
+                logger.info("Found these images in directory:");
+                for (File file : files) {
+                    logger.info(" - {}", file.getName());
+                }
+            } else {
+                logger.error("No files found in image directory");
+            }
             
             ImagePath.add(imageDir.getAbsolutePath());
             logger.info("Image library initialized: {}", imageDir.getAbsolutePath());
@@ -129,22 +137,26 @@ public class PatternTest {
             }
             
             String locationSuffix = "_" + currentLocation.name().toLowerCase();
+            double similarity = (currentLocation == Location.DENTON) ? 
+                DENTON_SIMILARITY : WOOTTON_SIMILARITY;
+                
+            logger.info("Initializing patterns for {} with similarity {}", 
+                currentLocation, similarity);
             
             selectionBorderPattern = new Pattern("selection_border" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             printMenuItemPattern = new Pattern("print_menu_item" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             documentCountPattern = new Pattern("document_count" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             saveDialogPattern = new Pattern("save_dialog_title" + locationSuffix + ".png")
-                .similar(PATTERN_SIMILARITY);
+                .similar(similarity);
             
-            logger.info("All patterns initialized for {} location with similarity: {}", 
-                currentLocation, PATTERN_SIMILARITY);
+            logger.info("All patterns initialized for {} location", currentLocation);
             return true;
             
         } catch (Exception e) {
-            logger.error("Failed to initialize patterns: " + e.getMessage());
+            logger.error("Failed to initialize patterns: " + e.getMessage(), e);
             return false;
         }
     }
@@ -207,14 +219,19 @@ public class PatternTest {
     
     private static int getDocumentCount() {
         try {
+            logger.info("Looking for document count pattern for location: {}", currentLocation);
+            logger.info("Using pattern: document_count_{}.png", currentLocation.name().toLowerCase());
+            
             Match countMatch = systmOneWindow.exists(documentCountPattern);
             
             if (countMatch == null) {
-                logger.error("Document count pattern not found");
+                logger.error("Document count pattern not found for location: {}", currentLocation);
                 return -1;
             }
             
-            // Extract document count from larger region to ensure full text capture
+            logger.info("Found document count pattern at: ({},{})", countMatch.x, countMatch.y);
+            
+            // Locate the word 'Document' then draw a box around it to fix the number of documents. Drawn to left to avoid page counter
             Region textRegion = new Region(
                 countMatch.x - 50, 
                 countMatch.y, 
@@ -223,10 +240,14 @@ public class PatternTest {
             );
             
             String countText = textRegion.text();
-            return extractNumberFromText(countText);
+            logger.info("Extracted text from region: '{}'", countText);
+            
+            int count = extractNumberFromText(countText);
+            logger.info("Extracted count: {}", count);
+            return count;
             
         } catch (Exception e) {
-            logger.error("Error getting document count: " + e.getMessage());
+            logger.error("Error getting document count: " + e.getMessage(), e);
             return -1;
         }
     }
@@ -242,6 +263,7 @@ public class PatternTest {
         return -1;
     }
     
+    // THIS METHOD CALLS THE ONE BELOW, I SHOULD, **REALLY** CHANGE THE NAMES
     private static void processDocuments(ProcessingStats stats) {
         logger.info("Starting document processing");
         
@@ -348,29 +370,61 @@ public class PatternTest {
 
     private static boolean determineLocation() {
         try {
+            logger.info("Starting location determination...");
+            
             // Try Denton patterns first
             Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(PATTERN_SIMILARITY);
-            if (systmOneWindow.exists(dentonTest) != null) {
-                currentLocation = Location.DENTON;
-                logger.info("Detected Denton location");
-                return true;
+                .similar(LOCATION_SIMILARITY);
+            logger.info("Checking for Denton pattern with similarity {}", LOCATION_SIMILARITY);
+            Match dentonMatch = systmOneWindow.exists(dentonTest);
+            
+            if (dentonMatch != null) {
+                logger.info("Found Denton match with score: {}", dentonMatch.getScore());
+            } else {
+                logger.info("No Denton match found");
             }
             
             // Try Wootton patterns
             Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(PATTERN_SIMILARITY);
-            if (systmOneWindow.exists(woottonTest) != null) {
-                currentLocation = Location.WOOTTON;
-                logger.info("Detected Wootton location");
-                return true;
+                .similar(LOCATION_SIMILARITY);
+            logger.info("Checking for Wootton pattern with similarity {}", LOCATION_SIMILARITY);
+            Match woottonMatch = systmOneWindow.exists(woottonTest);
+            
+            if (woottonMatch != null) {
+                logger.info("Found Wootton match with score: {}", woottonMatch.getScore());
+            } else {
+                logger.info("No Wootton match found");
             }
             
-            logger.error("Could not determine location - no matching patterns found");
-            return false;
+            // Compare matches
+            if (dentonMatch != null && woottonMatch != null) {
+                logger.info("Found both matches. Comparing scores...");
+                logger.info("Denton score: {} vs Wootton score: {}", 
+                    dentonMatch.getScore(), woottonMatch.getScore());
+                
+                if (dentonMatch.getScore() > woottonMatch.getScore()) {
+                    currentLocation = Location.DENTON;
+                    logger.info("Selected Denton (higher score)");
+                } else {
+                    currentLocation = Location.WOOTTON;
+                    logger.info("Selected Wootton (higher score)");
+                }
+            } else if (dentonMatch != null) {
+                currentLocation = Location.DENTON;
+                logger.info("Only Denton match found, selecting Denton");
+            } else if (woottonMatch != null) {
+                currentLocation = Location.WOOTTON;
+                logger.info("Only Wootton match found, selecting Wootton");
+            } else {
+                logger.error("No matches found for either location");
+                return false;
+            }
             
+            logger.info("Final location selected: {}", currentLocation);
+            return true;
+                
         } catch (Exception e) {
-            logger.error("Error determining location: " + e.getMessage());
+            logger.error("Error in determineLocation: " + e.getMessage(), e);
             return false;
         }
     }

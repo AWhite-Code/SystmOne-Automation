@@ -1,1 +1,1 @@
-Project designed to automate the extration of documents from SystmOne using java
+Program designed to extract documents from batches in SystmOne and process them.
