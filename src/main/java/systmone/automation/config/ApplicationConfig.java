@@ -18,7 +18,6 @@ public class ApplicationConfig {
     // Timing and Delays
     public static final long NAVIGATION_DELAY_MS = 200;
     public static final int FOCUS_DELAY_MS = 200;
-    public static final int UI_STABILITY_DELAY_MS = 1000;
     public static final double MENU_TIMEOUT = 5.0;
     public static final double DIALOG_TIMEOUT = 10.0;
     

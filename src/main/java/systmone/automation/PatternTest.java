@@ -25,6 +25,7 @@ public class PatternTest {
     private static Region systmOneWindow;
     private static App systmOne;
     private static String outputFolder;
+    private static UiStateHandler uiHandler;
     
     // Thread-safe kill switch
     private static final AtomicBoolean killSwitch = new AtomicBoolean(false);
@@ -49,10 +50,16 @@ public class PatternTest {
     }
     
     private static boolean initializeSystem() {
-        return initializeImageLibrary() &&
-                findAndFocusSystmOne() &&
-               initializePatterns() && 
-               initializeOutputDirectory();
+        boolean success = initializeImageLibrary() &&
+                         findAndFocusSystmOne() &&
+                         initializePatterns() && 
+                         initializeOutputDirectory();
+                         
+        if (success) {
+            uiHandler = new UiStateHandler(systmOneWindow);
+        }
+        
+        return success;
     }
     
     private static boolean initializeImageLibrary() {
@@ -244,14 +251,12 @@ public class PatternTest {
     }
     
     private static void processDocument(int index, ProcessingStats stats) 
-        throws FindFailed, InterruptedException {
-        
-        // Find where the current document is
-        logger.debug("Finding current document position");
-        Match documentMatch = systmOneWindow.exists(selectionBorderPattern);
-        if (documentMatch == null) {
-            throw new FindFailed("Failed to find document selection border");
-        }
+    throws FindFailed, InterruptedException {
+        // Wait for a stable UI before processing
+        Match documentMatch = uiHandler.waitForStableElement(
+            selectionBorderPattern, 
+            ApplicationConfig.DIALOG_TIMEOUT
+        );
 
         int documentNumber = index + 1;
         logger.info("Processing document {} of {} at: ({},{})", 
@@ -261,24 +266,14 @@ public class PatternTest {
             documentMatch.y
         );
 
-        // Generate the full save path for this document
         String documentPath = Paths.get(outputFolder, "Document" + documentNumber + ".pdf")
             .toString();
             
-        // Copy the path to clipboard for quick access in save dialog
         if (!ClipboardHelper.setClipboardContent(documentPath)) {
             throw new RuntimeException("Failed to copy document path to clipboard");
         }
 
-        // Wait for a moment to ensure UI is stable before clicking
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.UI_STABILITY_DELAY_MS);
-
-        // Perform the print operation
-        logger.debug("Starting print operation for document {}", documentNumber);
         printDocument(documentMatch, documentPath);
-
-        // Explicit wait after print operation
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.UI_STABILITY_DELAY_MS);
         }
 
     private static void printDocument(Match documentMatch, String savePath) 
@@ -305,9 +300,13 @@ public class PatternTest {
         logger.info("Saved document to: {}", savePath);
     }
     
-    private static void navigateToNextDocument() throws InterruptedException {
+    private static void navigateToNextDocument() throws FindFailed {
         systmOneWindow.type(Key.DOWN);
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+        
+        if (!uiHandler.verifyNavigationComplete(selectionBorderPattern, 
+            ApplicationConfig.DIALOG_TIMEOUT)) {
+            throw new FindFailed("Navigation failed - selection did not move to new position");
+        }
     }
 
     private static boolean determineLocation() {
