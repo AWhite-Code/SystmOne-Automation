@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 
+import systmone.automation.config.*;
+
 public class PatternTest {
     private static final Logger logger = LoggerFactory.getLogger(PatternTest.class);
     
@@ -26,24 +28,16 @@ public class PatternTest {
     private static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output"; // REMEMBER TO CHANGE THIS TO DEV ENVIRONS INSTEAD OF PROGRAMMING
     private static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
-    
-    private enum Location {
-        DENTON, WOOTTON
-    }    
 
     // Pattern matching settings
-    private static final double LOCATION_SIMILARITY = 0.95;
-    private static final double DENTON_SIMILARITY = 0.85;
-    private static final double WOOTTON_SIMILARITY = 0.85;
     private static final long NAVIGATION_DELAY_MS = 200;
     private static final int FOCUS_DELAY_MS = 1000;
     
     // UI Detection timeouts (in seconds)
     private static final double MENU_TIMEOUT = 5.0;
-    private static final double DIALOG_TIMEOUT = 10.0;
     
     // Core components
-    private static Location currentLocation;
+    private static ApplicationConfig.Location currentLocation;
     private static Pattern selectionBorderPattern;
     private static Pattern printMenuItemPattern;
     private static Pattern documentCountPattern;
@@ -137,8 +131,8 @@ public class PatternTest {
             }
             
             String locationSuffix = "_" + currentLocation.name().toLowerCase();
-            double similarity = (currentLocation == Location.DENTON) ? 
-                DENTON_SIMILARITY : WOOTTON_SIMILARITY;
+            double similarity = (currentLocation == ApplicationConfig.Location.DENTON) ? 
+                ApplicationConfig.DENTON_SIMILARITY : ApplicationConfig.WOOTTON_SIMILARITY;
                 
             logger.info("Initializing patterns for {} with similarity {}", 
                 currentLocation, similarity);
@@ -334,7 +328,7 @@ public class PatternTest {
         logger.debug("Clicked print menu item");
         
         // Wait for the save dialog title to appear
-        systmOneWindow.wait(saveDialogPattern, DIALOG_TIMEOUT);
+        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
         // Paste the full path and press enter
         systmOneWindow.type("a", KeyModifier.CTRL); 
@@ -342,7 +336,7 @@ public class PatternTest {
         systmOneWindow.type(Key.ENTER);
         
         // Wait for the save dialog to disappear
-        systmOneWindow.waitVanish(saveDialogPattern, DIALOG_TIMEOUT);
+        systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
         logger.info("Saved document to: {}", savePath);
     }
@@ -374,8 +368,8 @@ public class PatternTest {
             
             // Try Denton patterns first
             Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(LOCATION_SIMILARITY);
-            logger.info("Checking for Denton pattern with similarity {}", LOCATION_SIMILARITY);
+                .similar(ApplicationConfig.LOCATION_SIMILARITY);
+            logger.info("Checking for Denton pattern with similarity {}", ApplicationConfig.LOCATION_SIMILARITY);
             Match dentonMatch = systmOneWindow.exists(dentonTest);
             
             if (dentonMatch != null) {
@@ -386,8 +380,8 @@ public class PatternTest {
             
             // Try Wootton patterns
             Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(LOCATION_SIMILARITY);
-            logger.info("Checking for Wootton pattern with similarity {}", LOCATION_SIMILARITY);
+                .similar(ApplicationConfig.LOCATION_SIMILARITY);
+            logger.info("Checking for Wootton pattern with similarity {}", ApplicationConfig.LOCATION_SIMILARITY);
             Match woottonMatch = systmOneWindow.exists(woottonTest);
             
             if (woottonMatch != null) {
@@ -403,17 +397,17 @@ public class PatternTest {
                     dentonMatch.getScore(), woottonMatch.getScore());
                 
                 if (dentonMatch.getScore() > woottonMatch.getScore()) {
-                    currentLocation = Location.DENTON;
+                    currentLocation = ApplicationConfig.Location.DENTON;
                     logger.info("Selected Denton (higher score)");
                 } else {
-                    currentLocation = Location.WOOTTON;
+                    currentLocation = ApplicationConfig.Location.WOOTTON;
                     logger.info("Selected Wootton (higher score)");
                 }
             } else if (dentonMatch != null) {
-                currentLocation = Location.DENTON;
+                currentLocation = ApplicationConfig.Location.DENTON;
                 logger.info("Only Denton match found, selecting Denton");
             } else if (woottonMatch != null) {
-                currentLocation = Location.WOOTTON;
+                currentLocation = ApplicationConfig.Location.WOOTTON;
                 logger.info("Only Wootton match found, selecting Wootton");
             } else {
                 logger.error("No matches found for either location");
