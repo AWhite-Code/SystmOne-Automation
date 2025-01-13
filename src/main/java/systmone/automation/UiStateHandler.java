@@ -7,15 +7,10 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-
 import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.BasicStroke;
 import java.io.File;
-import java.io.IOException;
+import java.awt.Graphics2D;
+
 import javax.imageio.ImageIO;
 
 import systmone.automation.config.ApplicationConfig;
@@ -27,6 +22,14 @@ public class UiStateHandler {
     private Match lastKnownPosition;
     private Rectangle scrollbarBounds;
     private Robot robot;
+    private Pattern selectionPattern;
+    private Rectangle lastKnownThumbBounds;  // Store the last known position of the thumb
+    private Region fixedScrollbarRegion;
+    private Integer initialThumbY;
+
+    private Rectangle scrollbarRegion;
+    private Integer lastThumbY;  // Track the last known Y position of the thumb
+
     public UiStateHandler(Region uiRegion) {
         this.uiRegion = uiRegion;
         try {
@@ -36,6 +39,7 @@ public class UiStateHandler {
         }
     }
     
+
     /**
      * Waits for a UI element to appear and remain stable in position.
      */
@@ -82,235 +86,210 @@ public class UiStateHandler {
      * Initializes scrollbar tracking using color detection
      */
     public boolean initializeScrollbarTracking(Pattern selectionPattern) {
+        this.selectionPattern = selectionPattern;
+        
         try {
             Match selectionMatch = uiRegion.exists(selectionPattern);
             if (selectionMatch == null) {
-                logger.info("Could not find selection pattern");
+                logger.error("Could not find selection pattern");
                 return false;
             }
-            logger.info("Found selection at position: ({}, {})", selectionMatch.x, selectionMatch.y);
-            
-            int approximateOffset = 947;
-            int scrollbarX = selectionMatch.x + approximateOffset;
-            
-            Region searchRegion = new Region(
-                scrollbarX - 10,
-                selectionMatch.y - 100,
-                20,
-                800
-            );
-            
-            logger.info("Searching for scrollbar in region: ({}, {}, width: {}, height: {})",
-                searchRegion.x, searchRegion.y, searchRegion.w, searchRegion.h);
-            
-            // Capture and save the search region
-            Rectangle bounds = new Rectangle(
-                searchRegion.x, 
-                searchRegion.y, 
-                searchRegion.w, 
-                searchRegion.h
-            );
-            BufferedImage screenshot = robot.createScreenCapture(bounds);
-            
-            // Create a new image with the red border
-            BufferedImage debugImage = new BufferedImage(
-                screenshot.getWidth(), 
-                screenshot.getHeight(), 
-                BufferedImage.TYPE_INT_RGB
-            );
-            
-            // Draw the original screenshot
-            Graphics2D g2d = debugImage.createGraphics();
-            g2d.drawImage(screenshot, 0, 0, null);
-            
-            // Draw red border
-            g2d.setColor(Color.RED);
-            g2d.setStroke(new BasicStroke(2));
-            g2d.drawRect(0, 0, debugImage.getWidth() - 1, debugImage.getHeight() - 1);
-            g2d.dispose();
-            
-            // Save the debug image
-            try {
-                // Create a timestamped filename
-                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
-                File outputFile = new File("scrollbar_search_" + timestamp + ".png");
-                ImageIO.write(debugImage, "png", outputFile);
-                logger.info("Saved debug screenshot to: {}", outputFile.getAbsolutePath());
-            } catch (IOException e) {
-                logger.error("Failed to save debug screenshot: {}", e.getMessage());
-            }
-            
-            // Sample from the center of the captured image
-            int centerX = screenshot.getWidth() / 2;
-            logger.info("Starting color sampling at screen coordinates ({}, {})", 
-                searchRegion.x + centerX, searchRegion.y);
-            
-            // Sample a larger range of Y values
-            boolean foundChange = false;
-            Color lastColor = null;
-            
-            for (int y = 0; y < screenshot.getHeight(); y += 5) {  // Sample every 5 pixels
-                Color pixelColor = new Color(screenshot.getRGB(centerX, y));
-                
-                // Only log when the color changes significantly
-                if (lastColor == null || colorDifference(lastColor, pixelColor) > 20) {
-                    logger.info("At screen y={}: RGB({},{},{})", 
-                        (searchRegion.y + y), 
-                        pixelColor.getRed(), 
-                        pixelColor.getGreen(), 
-                        pixelColor.getBlue());
-                    foundChange = true;
-                }
-                lastColor = pixelColor;
-            }
-            
-            if (!foundChange) {
-                logger.warn("No significant color changes found in search region - may be looking in wrong area");
-            }
     
+            // Constants for scrollbar dimensions and positioning
+            final int SCROLLBAR_WIDTH = 18;        // Standard Windows scrollbar width
+            final int SCROLLBAR_HEIGHT = 400;      // Height for 1920x1080
+            final int UPWARD_PADDING = 20;         // Look slightly above for better detection
+            final int DOWNWARD_PADDING = 100;      // Extra space for scrolling down
+            
+            // Initial search region to find the thumb
+            Region searchRegion = new Region(
+                selectionMatch.x + 940 - selectionMatch.x,
+                selectionMatch.y - UPWARD_PADDING,  // Small upward padding
+                SCROLLBAR_WIDTH,
+                SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING  // Total height plus padding
+            );
+            
+            logger.info("Setting up initial search region: y={} to {}", 
+                searchRegion.y, searchRegion.y + searchRegion.h);
+            
             Rectangle thumbBounds = findScrollbarThumb(searchRegion);
             if (thumbBounds != null) {
-                logger.info("Found scrollbar thumb at: ({}, {}, width: {}, height: {})",
-                    thumbBounds.x, thumbBounds.y, thumbBounds.width, thumbBounds.height);
-                scrollbarBounds = thumbBounds;
+                // Store both the initial position and the search region
+                initialThumbY = thumbBounds.y;
+                lastKnownThumbBounds = thumbBounds;
+                
+                // Create our ongoing tracking region
+                fixedScrollbarRegion = new Region(
+                    thumbBounds.x,
+                    thumbBounds.y - UPWARD_PADDING,    // Maintain upward visibility
+                    SCROLLBAR_WIDTH,
+                    SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
+                );
+                
+                logger.info("Initialized scrollbar tracking: thumb at y={}, search region y={} to {}, height={}", 
+                    thumbBounds.y,
+                    fixedScrollbarRegion.y,
+                    fixedScrollbarRegion.y + fixedScrollbarRegion.h,
+                    fixedScrollbarRegion.h);
+                    
                 return true;
             }
-            
+    
+            logger.error("Could not locate scrollbar thumb in expected region");
             return false;
+    
         } catch (Exception e) {
-            logger.error("Failed to initialize scrollbar tracking: {}", e.getMessage(), e);
+            logger.error("Failed to initialize scrollbar tracking: {}", e.getMessage());
             return false;
         }
     }
-    
-    // Helper method to detect significant color changes
-    private int colorDifference(Color c1, Color c2) {
-        return Math.abs(c1.getRed() - c2.getRed()) +
-               Math.abs(c1.getGreen() - c2.getGreen()) +
-               Math.abs(c1.getBlue() - c2.getBlue());
-    }
-    
+
     /**
      * Finds the scrollbar thumb by color in the specified region
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
-            // Log the search region we're working with
-            logger.debug("Starting scrollbar thumb search in region: ({}, {}, width: {}, height: {})",
-                searchRegion.x, searchRegion.y, searchRegion.w, searchRegion.h);
-    
+            // Get the screenshot
             Rectangle bounds = new Rectangle(
                 searchRegion.x,
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
             );
+            
             BufferedImage screenshot = robot.createScreenCapture(bounds);
             
-            // Log that we've captured the screenshot successfully
-            logger.debug("Captured screenshot for color analysis, dimensions: {}x{}", 
-                screenshot.getWidth(), screenshot.getHeight());
-    
-            int thumbTop = -1;
-            int thumbBottom = -1;
+            // Calculate sampling line position
+            int imageWidth = screenshot.getWidth();
+            int centerX = imageWidth / 2;
             
-            // Scan down the center of the scrollbar
-            int centerX = searchRegion.w / 2;
-            logger.debug("Scanning vertically at x-position: {}", centerX);
-    
-            for (int y = 0; y < screenshot.getHeight(); y++) {
-                Color pixelColor = new Color(screenshot.getRGB(centerX, y));
+            // Log exact sampling coordinates
+            logger.debug("Sampling colors along vertical line at x={} in {}x{} image", 
+                centerX, imageWidth, screenshot.getHeight());
+            
+            // Sample along the height of the image
+            for (int imageY = 0; imageY < screenshot.getHeight(); imageY++) {
+                Color pixelColor = new Color(screenshot.getRGB(centerX, imageY));
                 
                 if (isScrollbarColor(pixelColor)) {
-                    if (thumbTop == -1) {
-                        thumbTop = y;
-                        logger.info("Found thumb top edge at y={}, color state: {}, RGB({},{},{})", 
-                            y, getColorState(pixelColor), 
-                            pixelColor.getRed(), pixelColor.getGreen(), pixelColor.getBlue());
+                    // Convert image coordinates back to screen coordinates
+                    int screenY = searchRegion.y + imageY;
+                    
+                    logger.debug("Found scrollbar color at image y={}, screen y={}", 
+                        imageY, screenY);
+                    
+                    // Find edges in image coordinates
+                    int thumbTopImage = imageY;
+                    int thumbBottomImage = imageY;
+                    
+                    // Scan up (in image coordinates)
+                    for (int scanY = imageY - 1; scanY >= 0; scanY--) {
+                        Color scanColor = new Color(screenshot.getRGB(centerX, scanY));
+                        if (!isScrollbarColor(scanColor)) {
+                            break;
+                        }
+                        thumbTopImage = scanY;
                     }
-                    thumbBottom = y;
-                } else if (thumbTop != -1) {
-                    // We've found the complete thumb
-                    logger.info("Found thumb bottom edge at y={}, total height: {}", 
-                        thumbBottom, (thumbBottom - thumbTop + 1));
-                    break;
+                    
+                    // Scan down (in image coordinates)
+                    for (int scanY = imageY + 1; scanY < screenshot.getHeight(); scanY++) {
+                        Color scanColor = new Color(screenshot.getRGB(centerX, scanY));
+                        if (!isScrollbarColor(scanColor)) {
+                            break;
+                        }
+                        thumbBottomImage = scanY;
+                    }
+                    
+                    // Convert back to screen coordinates for the return value
+                    Rectangle thumbBounds = new Rectangle(
+                        searchRegion.x,
+                        searchRegion.y + thumbTopImage,    // Convert to screen coordinates
+                        searchRegion.w,
+                        thumbBottomImage - thumbTopImage + 1
+                    );
+                    
+                    logger.info("Found thumb: image coordinates y={}->{}), screen coordinates y={}->{}",
+                        thumbTopImage, thumbBottomImage,
+                        thumbBounds.y, thumbBounds.y + thumbBounds.height);
+                        
+                    return thumbBounds;
                 }
             }
             
-            if (thumbTop != -1 && thumbBottom != -1) {
-                Rectangle thumbBounds = new Rectangle(
-                    searchRegion.x,
-                    searchRegion.y + thumbTop,
-                    searchRegion.w,
-                    thumbBottom - thumbTop + 1
-                );
-                logger.info("Successfully found scrollbar thumb: ({}, {}, width: {}, height: {})",
-                    thumbBounds.x, thumbBounds.y, thumbBounds.width, thumbBounds.height);
-                return thumbBounds;
-            } else {
-                logger.warn("No scrollbar thumb found in search region");
-            }
-            
         } catch (Exception e) {
-            logger.error("Error finding scrollbar thumb by color: {}", e.getMessage());
+            logger.error("Error finding scrollbar thumb: {}", e.getMessage());
         }
-        
         return null;
+    }
+    
+    // Helper method to find thumb edges
+    private int findThumbEdge(BufferedImage img, int x, int y, boolean searchUp) {
+        int edge = y;
+        int step = searchUp ? -1 : 1;
+        int limit = searchUp ? 0 : img.getHeight() - 1;
+        
+        while ((searchUp ? edge > limit : edge < limit)) {
+            Color color = new Color(img.getRGB(x, edge + step));
+            if (!isScrollbarColor(color)) {
+                break;
+            }
+            edge += step;
+        }
+        return edge;
     }
     
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
      */
     public boolean verifyDocumentLoaded(double timeout) {
-        if (scrollbarBounds == null) {
-            logger.warn("Scrollbar tracking not initialized");
-            return false;
-        }
-        
-        long startTime = System.currentTimeMillis();
-        long timeoutMs = (long)(timeout * 1000);
-        Rectangle lastPosition = null;
-        int stabilityCount = 0;
-        
-        while (System.currentTimeMillis() - startTime < timeoutMs) {
-            try {
-                Region searchRegion = new Region(
-                    scrollbarBounds.x,
-                    scrollbarBounds.y,
-                    scrollbarBounds.width,
-                    scrollbarBounds.height
-                );
-                
-                Rectangle currentPosition = findScrollbarThumb(searchRegion);
-                
-                if (currentPosition != null) {
-                    if (lastPosition == null) {
-                        lastPosition = currentPosition;
-                    } else if (currentPosition.y != lastPosition.y) {
-                        logger.debug("Thumb movement detected: {} -> {}", 
-                            lastPosition.y, currentPosition.y);
-                        
-                        if (++stabilityCount >= ApplicationConfig.REQUIRED_STABILITY_COUNT) {
-                            logger.info("Document load confirmed via scrollbar movement");
-                            return true;
-                        }
-                    } else {
-                        stabilityCount = 0;
-                    }
-                    
-                    lastPosition = currentPosition;
-                }
-                
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-                
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        try {
+            if (lastKnownThumbBounds == null || fixedScrollbarRegion == null) {
+                logger.error("Scrollbar tracking not properly initialized");
                 return false;
             }
+    
+            long startTime = System.currentTimeMillis();
+            long timeoutMs = (long)(timeout * 1000);
+            int retryCount = 0;
+            int maxRetries = 10;
+            
+            logger.debug("Starting verification - initial thumb Y: {}, search region Y: {} to {}", 
+                lastKnownThumbBounds.y,
+                fixedScrollbarRegion.y,
+                fixedScrollbarRegion.y + fixedScrollbarRegion.h);
+            
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                Rectangle currentThumb = findScrollbarThumb(fixedScrollbarRegion);
+                
+                if (currentThumb != null) {
+                    // Log every position for debugging
+                    logger.debug("Found thumb at y={} (initial: {}, last: {})", 
+                        currentThumb.y, initialThumbY, lastKnownThumbBounds.y);
+                    
+                    // Check if we've moved enough to consider it a valid change
+                    int movement = currentThumb.y - lastKnownThumbBounds.y;
+                    if (Math.abs(movement) >= 3) {  // Require at least 3 pixels of movement
+                        logger.info("Detected thumb movement of {} pixels ({}->{})", 
+                            movement, lastKnownThumbBounds.y, currentThumb.y);
+                        lastKnownThumbBounds = currentThumb;
+                        return true;
+                    }
+                }
+                
+                Thread.sleep(100);
+                if (++retryCount >= maxRetries) {
+                    logger.warn("Max retries reached. Last known Y: {}", 
+                        lastKnownThumbBounds != null ? lastKnownThumbBounds.y : "none");
+                    return false;
+                }
+            }
+            
+            return false;
+    
+        } catch (Exception e) {
+            logger.error("Error verifying document load: {}", e.getMessage());
+            return false;
         }
-        
-        logger.warn("Timeout waiting for document load confirmation");
-        return false;
     }
     
     private boolean isMatchStable(Match lastMatch, Match currentMatch) {
@@ -330,12 +309,5 @@ public class UiStateHandler {
         return Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
                Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
                Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
-    }
-    
-    private String getColorState(Color color) {
-        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT)) return "Default";
-        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER)) return "Hover";
-        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED)) return "Selected";
-        return "Unknown";
     }
 }
