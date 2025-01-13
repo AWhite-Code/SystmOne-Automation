@@ -74,16 +74,20 @@ public class UiStateHandler {
         try {
             Match selectionMatch = uiRegion.exists(selectionPattern);
             if (selectionMatch == null) {
+                logger.info("Could not find selection pattern - this is unexpected");
                 return false;
             }
+            logger.info("Found selection at position: ({}, {})", selectionMatch.x, selectionMatch.y);
             
-            // Define initial search region for scrollbar
+            // When defining search region, log the coordinates
             Region searchRegion = new Region(
-                selectionMatch.x + 250,  // Adjust offset based on your UI
+                selectionMatch.x + ApplicationConfig.SCROLLBAR_SEARCH_OFFSET_X,
                 selectionMatch.y,
-                20,  // Typical scrollbar width
+                ApplicationConfig.SCROLLBAR_WIDTH,
                 uiRegion.h - selectionMatch.y
             );
+            logger.info("Searching for scrollbar in region: ({}, {}, width: {}, height: {})",
+                searchRegion.x, searchRegion.y, searchRegion.w, searchRegion.h);
             
             // Find initial thumb position
             Rectangle thumbBounds = findScrollbarThumb(searchRegion);
@@ -111,6 +115,10 @@ public class UiStateHandler {
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
+            // Log the search region we're working with
+            logger.debug("Starting scrollbar thumb search in region: ({}, {}, width: {}, height: {})",
+                searchRegion.x, searchRegion.y, searchRegion.w, searchRegion.h);
+    
             Rectangle bounds = new Rectangle(
                 searchRegion.x,
                 searchRegion.y,
@@ -119,38 +127,52 @@ public class UiStateHandler {
             );
             BufferedImage screenshot = robot.createScreenCapture(bounds);
             
+            // Log that we've captured the screenshot successfully
+            logger.debug("Captured screenshot for color analysis, dimensions: {}x{}", 
+                screenshot.getWidth(), screenshot.getHeight());
+    
             int thumbTop = -1;
             int thumbBottom = -1;
             
             // Scan down the center of the scrollbar
             int centerX = searchRegion.w / 2;
+            logger.debug("Scanning vertically at x-position: {}", centerX);
+    
             for (int y = 0; y < screenshot.getHeight(); y++) {
                 Color pixelColor = new Color(screenshot.getRGB(centerX, y));
                 
                 if (isScrollbarColor(pixelColor)) {
                     if (thumbTop == -1) {
                         thumbTop = y;
-                        logger.trace("Found thumb top at y={}, color state: {}", 
-                            y, getColorState(pixelColor));
+                        logger.info("Found thumb top edge at y={}, color state: {}, RGB({},{},{})", 
+                            y, getColorState(pixelColor), 
+                            pixelColor.getRed(), pixelColor.getGreen(), pixelColor.getBlue());
                     }
                     thumbBottom = y;
                 } else if (thumbTop != -1) {
                     // We've found the complete thumb
+                    logger.info("Found thumb bottom edge at y={}, total height: {}", 
+                        thumbBottom, (thumbBottom - thumbTop + 1));
                     break;
                 }
             }
             
             if (thumbTop != -1 && thumbBottom != -1) {
-                return new Rectangle(
+                Rectangle thumbBounds = new Rectangle(
                     searchRegion.x,
                     searchRegion.y + thumbTop,
                     searchRegion.w,
                     thumbBottom - thumbTop + 1
                 );
+                logger.info("Successfully found scrollbar thumb: ({}, {}, width: {}, height: {})",
+                    thumbBounds.x, thumbBounds.y, thumbBounds.width, thumbBounds.height);
+                return thumbBounds;
+            } else {
+                logger.warn("No scrollbar thumb found in search region");
             }
             
         } catch (Exception e) {
-            logger.error("Error finding scrollbar thumb by color", e);
+            logger.error("Error finding scrollbar thumb by color: {}", e.getMessage());
         }
         
         return null;
