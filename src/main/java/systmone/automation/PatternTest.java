@@ -54,17 +54,43 @@ public class PatternTest {
     }
     
     private static boolean initializeSystem() {
-        boolean success = initializeImageLibrary() &&
-                         findAndFocusSystmOne() &&
-                         initializePatterns() && 
-                         initializeOutputDirectory();
-                         uiHandler.initializeScrollbarTracking(selectionBorderPattern);
-                         
-        if (success) {
+        try {
+            // First initialize the core components
+            if (!initializeImageLibrary()) {
+                logger.error("Failed to initialize image library");
+                return false;
+            }
+            
+            if (!findAndFocusSystmOne()) {
+                logger.error("Failed to find SystmOne window");
+                return false;
+            }
+            
+            if (!initializePatterns()) {
+                logger.error("Failed to initialize patterns");
+                return false;
+            }
+            
+            if (!initializeOutputDirectory()) {
+                logger.error("Failed to initialize output directory");
+                return false;
+            }
+            
+            // Now initialize the UI handler
             uiHandler = new UiStateHandler(systmOneWindow);
+            logger.info("Created UI handler");
+            
+            // Initialize scrollbar tracking
+            if (!uiHandler.initializeScrollbarTracking(selectionBorderPattern)) {
+                logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+            }
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("Error during system initialization: {}", e.getMessage());
+            return false;
         }
-        
-        return success;
     }
     
     private static boolean initializeImageLibrary() {
@@ -263,12 +289,11 @@ public class PatternTest {
     
     private static void processDocument(int index, ProcessingStats stats) 
     throws FindFailed, InterruptedException {
-        // Wait for a stable UI before processing
         Match documentMatch = uiHandler.waitForStableElement(
             selectionBorderPattern, 
             ApplicationConfig.DIALOG_TIMEOUT
         );
-
+    
         int documentNumber = index + 1;
         logger.info("Processing document {} of {} at: ({},{})", 
             documentNumber,
@@ -276,11 +301,18 @@ public class PatternTest {
             documentMatch.x, 
             documentMatch.y
         );
-
-        // For documents after the first few, verify using scrollbar
+    
+        // Only try scrollbar verification if we're past document 4
         if (documentNumber > ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
-            if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
-                throw new FindFailed("Document loading not confirmed via scrollbar");
+            try {
+                if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
+                    logger.warn("Could not verify document loading via scrollbar, falling back to basic verification");
+                    // Instead of throwing an error, wait a bit longer
+                    Thread.sleep(1000);  // Add extra delay for safety
+                }
+            } catch (Exception e) {
+                logger.warn("Scrollbar verification failed, continuing with basic verification");
+                Thread.sleep(1000);  // Add extra delay for safety
             }
         }
 

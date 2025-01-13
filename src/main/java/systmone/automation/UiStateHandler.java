@@ -7,6 +7,17 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.BasicStroke;
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+
 import systmone.automation.config.ApplicationConfig;
 
 public class UiStateHandler {
@@ -74,40 +85,109 @@ public class UiStateHandler {
         try {
             Match selectionMatch = uiRegion.exists(selectionPattern);
             if (selectionMatch == null) {
-                logger.info("Could not find selection pattern - this is unexpected");
+                logger.info("Could not find selection pattern");
                 return false;
             }
             logger.info("Found selection at position: ({}, {})", selectionMatch.x, selectionMatch.y);
             
-            // When defining search region, log the coordinates
+            int approximateOffset = 947;
+            int scrollbarX = selectionMatch.x + approximateOffset;
+            
             Region searchRegion = new Region(
-                selectionMatch.x + ApplicationConfig.SCROLLBAR_SEARCH_OFFSET_X,
-                selectionMatch.y,
-                ApplicationConfig.SCROLLBAR_WIDTH,
-                uiRegion.h - selectionMatch.y
+                scrollbarX - 10,
+                selectionMatch.y - 100,
+                20,
+                800
             );
+            
             logger.info("Searching for scrollbar in region: ({}, {}, width: {}, height: {})",
                 searchRegion.x, searchRegion.y, searchRegion.w, searchRegion.h);
             
-            // Find initial thumb position
+            // Capture and save the search region
+            Rectangle bounds = new Rectangle(
+                searchRegion.x, 
+                searchRegion.y, 
+                searchRegion.w, 
+                searchRegion.h
+            );
+            BufferedImage screenshot = robot.createScreenCapture(bounds);
+            
+            // Create a new image with the red border
+            BufferedImage debugImage = new BufferedImage(
+                screenshot.getWidth(), 
+                screenshot.getHeight(), 
+                BufferedImage.TYPE_INT_RGB
+            );
+            
+            // Draw the original screenshot
+            Graphics2D g2d = debugImage.createGraphics();
+            g2d.drawImage(screenshot, 0, 0, null);
+            
+            // Draw red border
+            g2d.setColor(Color.RED);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawRect(0, 0, debugImage.getWidth() - 1, debugImage.getHeight() - 1);
+            g2d.dispose();
+            
+            // Save the debug image
+            try {
+                // Create a timestamped filename
+                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
+                File outputFile = new File("scrollbar_search_" + timestamp + ".png");
+                ImageIO.write(debugImage, "png", outputFile);
+                logger.info("Saved debug screenshot to: {}", outputFile.getAbsolutePath());
+            } catch (IOException e) {
+                logger.error("Failed to save debug screenshot: {}", e.getMessage());
+            }
+            
+            // Sample from the center of the captured image
+            int centerX = screenshot.getWidth() / 2;
+            logger.info("Starting color sampling at screen coordinates ({}, {})", 
+                searchRegion.x + centerX, searchRegion.y);
+            
+            // Sample a larger range of Y values
+            boolean foundChange = false;
+            Color lastColor = null;
+            
+            for (int y = 0; y < screenshot.getHeight(); y += 5) {  // Sample every 5 pixels
+                Color pixelColor = new Color(screenshot.getRGB(centerX, y));
+                
+                // Only log when the color changes significantly
+                if (lastColor == null || colorDifference(lastColor, pixelColor) > 20) {
+                    logger.info("At screen y={}: RGB({},{},{})", 
+                        (searchRegion.y + y), 
+                        pixelColor.getRed(), 
+                        pixelColor.getGreen(), 
+                        pixelColor.getBlue());
+                    foundChange = true;
+                }
+                lastColor = pixelColor;
+            }
+            
+            if (!foundChange) {
+                logger.warn("No significant color changes found in search region - may be looking in wrong area");
+            }
+    
             Rectangle thumbBounds = findScrollbarThumb(searchRegion);
             if (thumbBounds != null) {
-                // Store the full scrollbar region for future searches
-                scrollbarBounds = new Rectangle(
-                    thumbBounds.x,
-                    searchRegion.y,
-                    thumbBounds.width,
-                    searchRegion.h
-                );
-                logger.info("Scrollbar tracking initialized successfully");
+                logger.info("Found scrollbar thumb at: ({}, {}, width: {}, height: {})",
+                    thumbBounds.x, thumbBounds.y, thumbBounds.width, thumbBounds.height);
+                scrollbarBounds = thumbBounds;
                 return true;
             }
             
+            return false;
         } catch (Exception e) {
-            logger.error("Failed to initialize scrollbar tracking", e);
+            logger.error("Failed to initialize scrollbar tracking: {}", e.getMessage(), e);
+            return false;
         }
-        
-        return false;
+    }
+    
+    // Helper method to detect significant color changes
+    private int colorDifference(Color c1, Color c2) {
+        return Math.abs(c1.getRed() - c2.getRed()) +
+               Math.abs(c1.getGreen() - c2.getGreen()) +
+               Math.abs(c1.getBlue() - c2.getBlue());
     }
     
     /**
