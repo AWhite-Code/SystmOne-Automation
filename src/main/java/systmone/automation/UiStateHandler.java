@@ -253,33 +253,38 @@ public class UiStateHandler {
             int retryCount = 0;
             int maxRetries = 10;
             
-            logger.debug("Starting verification - initial thumb Y: {}, search region Y: {} to {}", 
-                lastKnownThumbBounds.y,
-                fixedScrollbarRegion.y,
-                fixedScrollbarRegion.y + fixedScrollbarRegion.h);
+            // Add initial delay to let UI update
+            Thread.sleep(100);  // Let the UI start moving
+            
+            Rectangle initialPosition = findScrollbarThumb(fixedScrollbarRegion);
+            if (initialPosition == null) {
+                logger.error("Could not find initial thumb position");
+                return false;
+            }
+            
+            logger.info("Starting position check - thumb at y={}", initialPosition.y);
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
-                Rectangle currentThumb = findScrollbarThumb(fixedScrollbarRegion);
+                Thread.sleep(200);  // Wait longer between checks
                 
+                Rectangle currentThumb = findScrollbarThumb(fixedScrollbarRegion);
                 if (currentThumb != null) {
-                    // Log every position for debugging
-                    logger.debug("Found thumb at y={} (initial: {}, last: {})", 
-                        currentThumb.y, initialThumbY, lastKnownThumbBounds.y);
+                    int movement = currentThumb.y - initialPosition.y;
                     
-                    // Check if we've moved enough to consider it a valid change
-                    int movement = currentThumb.y - lastKnownThumbBounds.y;
+                    // Log every position check
+                    logger.debug("Current position y={}, movement={} pixels", 
+                        currentThumb.y, movement);
+                    
                     if (Math.abs(movement) >= 3) {  // Require at least 3 pixels of movement
-                        logger.info("Detected thumb movement of {} pixels ({}->{})", 
-                            movement, lastKnownThumbBounds.y, currentThumb.y);
-                        lastKnownThumbBounds = currentThumb;
+                        logger.info("Detected movement of {} pixels from {} to {}", 
+                            movement, initialPosition.y, currentThumb.y);
+                        lastKnownThumbBounds = currentThumb;  // Update for next check
                         return true;
                     }
                 }
                 
-                Thread.sleep(100);
                 if (++retryCount >= maxRetries) {
-                    logger.warn("Max retries reached. Last known Y: {}", 
-                        lastKnownThumbBounds != null ? lastKnownThumbBounds.y : "none");
+                    logger.warn("No movement detected after {} attempts", maxRetries);
                     return false;
                 }
             }
