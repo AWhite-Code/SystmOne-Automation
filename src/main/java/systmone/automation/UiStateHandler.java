@@ -7,28 +7,15 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
+import systmone.automation.config.ApplicationConfig;
 
 public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
-    // UI interaction constants
-    private static final int REQUIRED_STABILITY_COUNT = 3;
-    private static final int POLL_INTERVAL_MS = 100;
-    private static final int MOVEMENT_GRACE_PERIOD_MS = 500;
-    private static final int MIN_DOCUMENTS_FOR_SCROLLBAR = 4;
-    
-    // Scrollbar color states
-    private static final Color SCROLLBAR_DEFAULT = new Color(205, 205, 205);  // #CDCDCD
-    private static final Color SCROLLBAR_HOVER = new Color(166, 166, 166);    // #A6A6A6
-    private static final Color SCROLLBAR_SELECTED = new Color(96, 96, 96);    // 60,60,60
-    private static final int COLOR_TOLERANCE = 3;
-    
-    // Core components
     private final Region uiRegion;
     private Match lastKnownPosition;
     private Rectangle scrollbarBounds;
     private Robot robot;
-    
     public UiStateHandler(Region uiRegion) {
         this.uiRegion = uiRegion;
         try {
@@ -41,52 +28,43 @@ public class UiStateHandler {
     /**
      * Waits for a UI element to appear and remain stable in position.
      */
-    public Match waitForStableElement(Pattern pattern, double timeout) throws FindFailed {
+    public Match waitForStableElement(Pattern pattern, double timeout) {
         long startTime = System.currentTimeMillis();
         long timeoutMs = (long)(timeout * 1000);
         Match lastMatch = null;
         int stabilityCount = 0;
-        
-        logger.debug("Starting to wait for stable element with timeout: {} seconds", timeout);
         
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             try {
                 Match currentMatch = uiRegion.exists(pattern);
                 
                 if (currentMatch == null) {
-                    logger.trace("No match found, resetting stability counter");
                     stabilityCount = 0;
                     lastMatch = null;
-                    Thread.sleep(POLL_INTERVAL_MS);
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     continue;
                 }
                 
                 if (isMatchStable(lastMatch, currentMatch)) {
                     stabilityCount++;
-                    logger.trace("Position stable for {} checks", stabilityCount);
-                    
-                    if (stabilityCount >= REQUIRED_STABILITY_COUNT) {
-                        logger.debug("Element stabilized at position ({}, {})", 
-                            currentMatch.x, currentMatch.y);
+                    if (stabilityCount >= ApplicationConfig.REQUIRED_STABILITY_COUNT) {
                         lastKnownPosition = currentMatch;
                         return currentMatch;
                     }
                 } else {
-                    logger.trace("Position changed, resetting stability counter");
                     stabilityCount = 1;
                 }
                 
                 lastMatch = currentMatch;
-                Thread.sleep(POLL_INTERVAL_MS);
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new FindFailed("Interrupted while waiting for stable element");
+                return null;
             }
         }
         
-        throw new FindFailed(
-            String.format("Element did not stabilize within %.1f seconds", timeout));
+        return null;
     }
     
     /**
@@ -210,7 +188,7 @@ public class UiStateHandler {
                         logger.debug("Thumb movement detected: {} -> {}", 
                             lastPosition.y, currentPosition.y);
                         
-                        if (++stabilityCount >= REQUIRED_STABILITY_COUNT) {
+                        if (++stabilityCount >= ApplicationConfig.REQUIRED_STABILITY_COUNT) {
                             logger.info("Document load confirmed via scrollbar movement");
                             return true;
                         }
@@ -221,7 +199,7 @@ public class UiStateHandler {
                     lastPosition = currentPosition;
                 }
                 
-                Thread.sleep(POLL_INTERVAL_MS);
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -241,21 +219,21 @@ public class UiStateHandler {
     }
     
     private boolean isScrollbarColor(Color color) {
-        return isMatchingColor(color, SCROLLBAR_DEFAULT) ||
-               isMatchingColor(color, SCROLLBAR_HOVER) ||
-               isMatchingColor(color, SCROLLBAR_SELECTED);
+        return isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
+               isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
+               isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED);
     }
     
     private boolean isMatchingColor(Color c1, Color target) {
-        return Math.abs(c1.getRed() - target.getRed()) <= COLOR_TOLERANCE &&
-               Math.abs(c1.getGreen() - target.getGreen()) <= COLOR_TOLERANCE &&
-               Math.abs(c1.getBlue() - target.getBlue()) <= COLOR_TOLERANCE;
+        return Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
+               Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
+               Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
     }
     
     private String getColorState(Color color) {
-        if (isMatchingColor(color, SCROLLBAR_DEFAULT)) return "Default";
-        if (isMatchingColor(color, SCROLLBAR_HOVER)) return "Hover";
-        if (isMatchingColor(color, SCROLLBAR_SELECTED)) return "Selected";
+        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT)) return "Default";
+        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER)) return "Hover";
+        if (isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED)) return "Selected";
         return "Unknown";
     }
 }
