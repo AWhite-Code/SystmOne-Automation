@@ -10,8 +10,12 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
+import java.awt.Rectangle;
+import java.awt.Robot;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
 
-import systmone.automation.config.*;
+import systmone.automation.config.ApplicationConfig;
 
 public class PatternTest {
     private static final Logger logger = LoggerFactory.getLogger(PatternTest.class);
@@ -54,6 +58,7 @@ public class PatternTest {
                          findAndFocusSystmOne() &&
                          initializePatterns() && 
                          initializeOutputDirectory();
+                         uiHandler.initializeScrollbarTracking(selectionBorderPattern);
                          
         if (success) {
             uiHandler = new UiStateHandler(systmOneWindow);
@@ -241,7 +246,7 @@ public class PatternTest {
                 
                 // Only attempt navigation if not at the last document
                 if (i < stats.totalDocuments - 1) {
-                    navigateToNextDocument();
+                    navigateToNextDocument(stats);  // Updated to pass stats
                 } else {
                     logger.info("Reached final document - processing complete");
                 }
@@ -271,6 +276,13 @@ public class PatternTest {
             documentMatch.x, 
             documentMatch.y
         );
+
+        // For documents after the first few, verify using scrollbar
+        if (documentNumber > ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+            if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
+                throw new FindFailed("Document loading not confirmed via scrollbar");
+            }
+        }
 
         String documentPath = Paths.get(outputFolder, "Document" + documentNumber + ".pdf")
             .toString();
@@ -306,12 +318,22 @@ public class PatternTest {
         logger.info("Saved document to: {}", savePath);
     }
     
-    private static void navigateToNextDocument() throws FindFailed {
+    private static void navigateToNextDocument(ProcessingStats stats) throws FindFailed {
         systmOneWindow.type(Key.DOWN);
         
-        if (!uiHandler.verifyNavigationComplete(selectionBorderPattern, 
-            ApplicationConfig.DIALOG_TIMEOUT)) {
-            throw new FindFailed("Navigation failed - selection did not move to new position");
+        // For small batches or early documents, use basic verification
+        if (stats.totalDocuments <= ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR || 
+            stats.processedDocuments < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+            Match match = uiHandler.waitForStableElement(selectionBorderPattern, 
+                ApplicationConfig.DIALOG_TIMEOUT);
+            if (match == null) {
+                throw new FindFailed("Navigation failed - selection did not move");
+            }
+        } else {
+            // For later documents, use scrollbar verification
+            if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
+                throw new FindFailed("Navigation failed - document loading not confirmed");
+            }
         }
     }
 
