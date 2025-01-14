@@ -149,93 +149,73 @@ public class UiStateHandler {
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
-            // Get the screenshot
-            Rectangle bounds = new Rectangle(
+            BufferedImage screenshot = robot.createScreenCapture(new Rectangle(
                 searchRegion.x,
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
-            );
+            ));
+    
+            int centerX = screenshot.getWidth() / 2;
             
-            BufferedImage screenshot = robot.createScreenCapture(bounds);
+            // Track both the raw image position and best match position
+            int bestMatchStart = -1;
+            int bestMatchEnd = -1;
+            int longestRun = 0;
+            int currentRun = 0;
+            int runStart = -1;
             
-            // Calculate sampling line position
-            int imageWidth = screenshot.getWidth();
-            int centerX = imageWidth / 2;
-            
-            // Log exact sampling coordinates
-            logger.debug("Sampling colors along vertical line at x={} in {}x{} image", 
-                centerX, imageWidth, screenshot.getHeight());
-            
-            // Sample along the height of the image
-            for (int imageY = 0; imageY < screenshot.getHeight(); imageY++) {
-                Color pixelColor = new Color(screenshot.getRGB(centerX, imageY));
+            // Scan for the longest continuous run of scrollbar color
+            for (int y = 0; y < screenshot.getHeight(); y++) {
+                Color pixelColor = new Color(screenshot.getRGB(centerX, y));
                 
                 if (isScrollbarColor(pixelColor)) {
-                    // Convert image coordinates back to screen coordinates
-                    int screenY = searchRegion.y + imageY;
-                    
-                    logger.debug("Found scrollbar color at image y={}, screen y={}", 
-                        imageY, screenY);
-                    
-                    // Find edges in image coordinates
-                    int thumbTopImage = imageY;
-                    int thumbBottomImage = imageY;
-                    
-                    // Scan up (in image coordinates)
-                    for (int scanY = imageY - 1; scanY >= 0; scanY--) {
-                        Color scanColor = new Color(screenshot.getRGB(centerX, scanY));
-                        if (!isScrollbarColor(scanColor)) {
-                            break;
-                        }
-                        thumbTopImage = scanY;
+                    if (currentRun == 0) {
+                        runStart = y;
                     }
-                    
-                    // Scan down (in image coordinates)
-                    for (int scanY = imageY + 1; scanY < screenshot.getHeight(); scanY++) {
-                        Color scanColor = new Color(screenshot.getRGB(centerX, scanY));
-                        if (!isScrollbarColor(scanColor)) {
-                            break;
-                        }
-                        thumbBottomImage = scanY;
+                    currentRun++;
+                } else {
+                    if (currentRun > longestRun) {
+                        longestRun = currentRun;
+                        bestMatchStart = runStart;
+                        bestMatchEnd = y - 1;
                     }
-                    
-                    // Convert back to screen coordinates for the return value
-                    Rectangle thumbBounds = new Rectangle(
-                        searchRegion.x,
-                        searchRegion.y + thumbTopImage,    // Convert to screen coordinates
-                        searchRegion.w,
-                        thumbBottomImage - thumbTopImage + 1
-                    );
-                    
-                    logger.info("Found thumb: image coordinates y={}->{}), screen coordinates y={}->{}",
-                        thumbTopImage, thumbBottomImage,
-                        thumbBounds.y, thumbBounds.y + thumbBounds.height);
-                        
-                    return thumbBounds;
+                    currentRun = 0;
                 }
             }
             
+            // Check final run
+            if (currentRun > longestRun) {
+                bestMatchStart = runStart;
+                bestMatchEnd = screenshot.getHeight() - 1;
+            }
+            
+            // If we found a thumb (minimum 3 pixels high)
+            if (bestMatchStart != -1 && (bestMatchEnd - bestMatchStart) >= 2) {
+                // Calculate absolute screen coordinates
+                int screenY = searchRegion.y + bestMatchStart;
+                int height = bestMatchEnd - bestMatchStart + 1;
+                
+                Rectangle thumbBounds = new Rectangle(
+                    searchRegion.x,
+                    screenY,
+                    searchRegion.w,
+                    height
+                );
+                
+                logger.info("Found thumb: image coordinates y={}->{}), screen coordinates y={}->{}",
+                    bestMatchStart, bestMatchEnd,
+                    screenY, screenY + height);
+                    
+                return thumbBounds;
+            }
+            
+            return null;
+            
         } catch (Exception e) {
             logger.error("Error finding scrollbar thumb: {}", e.getMessage());
+            return null;
         }
-        return null;
-    }
-    
-    // Helper method to find thumb edges
-    private int findThumbEdge(BufferedImage img, int x, int y, boolean searchUp) {
-        int edge = y;
-        int step = searchUp ? -1 : 1;
-        int limit = searchUp ? 0 : img.getHeight() - 1;
-        
-        while ((searchUp ? edge > limit : edge < limit)) {
-            Color color = new Color(img.getRGB(x, edge + step));
-            if (!isScrollbarColor(color)) {
-                break;
-            }
-            edge += step;
-        }
-        return edge;
     }
     
     /**
@@ -243,56 +223,42 @@ public class UiStateHandler {
      */
     public boolean verifyDocumentLoaded(double timeout) {
         try {
-            if (lastKnownThumbBounds == null || fixedScrollbarRegion == null) {
-                logger.error("Scrollbar tracking not properly initialized");
+            if (lastKnownThumbBounds == null) {
+                logger.error("Scrollbar tracking not initialized");
                 return false;
             }
     
-            long startTime = System.currentTimeMillis();
-            long timeoutMs = (long)(timeout * 1000);
-            int retryCount = 0;
-            int maxRetries = 10;
-            
-            // Add initial delay to let UI update
-            Thread.sleep(100);  // Let the UI start moving
-            
-            Rectangle initialPosition = findScrollbarThumb(fixedScrollbarRegion);
-            if (initialPosition == null) {
-                logger.error("Could not find initial thumb position");
+            // Get current position
+            Rectangle currentPosition = findScrollbarThumb(fixedScrollbarRegion);
+            if (currentPosition == null) {
+                logger.error("Could not find current thumb position");
                 return false;
             }
+    
+            // Calculate movement from initial position
+            int movement = currentPosition.y - lastKnownThumbBounds.y;
             
-            logger.info("Starting position check - thumb at y={}", initialPosition.y);
-            
-            while (System.currentTimeMillis() - startTime < timeoutMs) {
-                Thread.sleep(200);  // Wait longer between checks
-                
-                Rectangle currentThumb = findScrollbarThumb(fixedScrollbarRegion);
-                if (currentThumb != null) {
-                    int movement = currentThumb.y - initialPosition.y;
-                    
-                    // Log every position check
-                    logger.debug("Current position y={}, movement={} pixels", 
-                        currentThumb.y, movement);
-                    
-                    if (Math.abs(movement) >= 3) {  // Require at least 3 pixels of movement
-                        logger.info("Detected movement of {} pixels from {} to {}", 
-                            movement, initialPosition.y, currentThumb.y);
-                        lastKnownThumbBounds = currentThumb;  // Update for next check
-                        return true;
-                    }
-                }
-                
-                if (++retryCount >= maxRetries) {
-                    logger.warn("No movement detected after {} attempts", maxRetries);
-                    return false;
-                }
+            logger.info("Comparing positions - initial: y={}, current: y={}, movement: {} pixels", 
+                lastKnownThumbBounds.y, currentPosition.y, movement);
+    
+            if (movement > 0) {
+                // Any downward movement indicates document has moved up
+                logger.info("Detected downward thumb movement - document ready");
+                lastKnownThumbBounds = currentPosition;  // Update for next check
+                return true;
+            } else if (movement < 0) {
+                // Upward movement is unexpected - log warning and fall back to standard verification
+                logger.warn("Unexpected upward thumb movement detected ({} pixels) - falling back to standard verification", 
+                    movement);
+                return false;
             }
-            
+    
+            // If we get here, no movement was detected
+            logger.debug("No thumb movement detected at position y={}", currentPosition.y);
             return false;
     
         } catch (Exception e) {
-            logger.error("Error verifying document load: {}", e.getMessage());
+            logger.error("Error in verification: {}", e.getMessage());
             return false;
         }
     }
