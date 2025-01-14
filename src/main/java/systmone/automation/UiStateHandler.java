@@ -20,15 +20,21 @@ public class UiStateHandler {
     
     private final Region uiRegion;
     private Match lastKnownPosition;
-    private Rectangle scrollbarBounds;
     private Robot robot;
     private Pattern selectionPattern;
+    
+    // Scrollbar tracking state
+    private Rectangle baselineThumbPosition;    // Position at start of document load
+    private Rectangle currentThumbPosition;     // Current detected position
+    private boolean verificationInProgress;     // Flag to prevent duplicate checks
     private Rectangle lastKnownThumbBounds;  // Store the last known position of the thumb
     private Region fixedScrollbarRegion;
     private Integer initialThumbY;
 
     private Rectangle scrollbarRegion;
     private Integer lastThumbY;  // Track the last known Y position of the thumb
+
+    private boolean isTrackingStarted;         // Flag to indicate if we're actively tracking
 
     public UiStateHandler(Region uiRegion) {
         this.uiRegion = uiRegion;
@@ -81,6 +87,34 @@ public class UiStateHandler {
         
         return null;
     }
+
+    /**
+     * Starts tracking a new document loading sequence by establishing baseline position
+     */
+    public boolean startDocumentTracking() {
+        if (fixedScrollbarRegion == null) {
+            logger.error("Scrollbar tracking not initialized");
+            return false;
+        }
+
+        try {
+            Rectangle newBaseline = findScrollbarThumb(fixedScrollbarRegion);
+            if (newBaseline == null) {
+                logger.error("Could not establish baseline position");
+                return false;
+            }
+
+            baselineThumbPosition = newBaseline;
+            isTrackingStarted = true;
+            
+            logger.info("Started new document tracking - baseline set at y={}", baselineThumbPosition.y);
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("Error starting document tracking: {}", e.getMessage());
+            return false;
+        }
+    }
     
     /**
      * Initializes scrollbar tracking using color detection
@@ -98,15 +132,15 @@ public class UiStateHandler {
             // Constants for scrollbar dimensions and positioning
             final int SCROLLBAR_WIDTH = 18;        // Standard Windows scrollbar width
             final int SCROLLBAR_HEIGHT = 400;      // Height for 1920x1080
-            final int UPWARD_PADDING = 20;         // Look slightly above for better detection
+            final int UPWARD_PADDING = 20;         // Look slightly above to catch the ^ arrow above scrollbar
             final int DOWNWARD_PADDING = 100;      // Extra space for scrolling down
             
             // Initial search region to find the thumb
             Region searchRegion = new Region(
                 selectionMatch.x + 940 - selectionMatch.x,
-                selectionMatch.y - UPWARD_PADDING,  // Small upward padding
+                selectionMatch.y - UPWARD_PADDING, 
                 SCROLLBAR_WIDTH,
-                SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING  // Total height plus padding
+                SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING 
             );
             
             logger.info("Setting up initial search region: y={} to {}", 
@@ -114,6 +148,7 @@ public class UiStateHandler {
             
             Rectangle thumbBounds = findScrollbarThumb(searchRegion);
             if (thumbBounds != null) {
+
                 // Store both the initial position and the search region
                 initialThumbY = thumbBounds.y;
                 lastKnownThumbBounds = thumbBounds;
@@ -190,8 +225,9 @@ public class UiStateHandler {
                 bestMatchEnd = screenshot.getHeight() - 1;
             }
             
-            // If we found a thumb (minimum 3 pixels high)
+            // If thumb found (minimum 3 pixels high, this may cause issues later)
             if (bestMatchStart != -1 && (bestMatchEnd - bestMatchStart) >= 2) {
+                
                 // Calculate absolute screen coordinates
                 int screenY = searchRegion.y + bestMatchStart;
                 int height = bestMatchEnd - bestMatchStart + 1;
@@ -220,43 +256,48 @@ public class UiStateHandler {
     
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
-     */
+    */
     public boolean verifyDocumentLoaded(double timeout) {
-        try {
-            if (lastKnownThumbBounds == null) {
-                logger.error("Scrollbar tracking not initialized");
-                return false;
-            }
-    
-            // Get current position
-            Rectangle currentPosition = findScrollbarThumb(fixedScrollbarRegion);
-            if (currentPosition == null) {
-                logger.error("Could not find current thumb position");
-                return false;
-            }
-    
-            // Calculate movement from initial position
-            int movement = currentPosition.y - lastKnownThumbBounds.y;
-            
-            logger.info("Comparing positions - initial: y={}, current: y={}, movement: {} pixels", 
-                lastKnownThumbBounds.y, currentPosition.y, movement);
-    
-            if (movement > 0) {
-                // Any downward movement indicates document has moved up
-                logger.info("Detected downward thumb movement - document ready");
-                lastKnownThumbBounds = currentPosition;  // Update for next check
-                return true;
-            } else if (movement < 0) {
-                // Upward movement is unexpected - log warning and fall back to standard verification
-                logger.warn("Unexpected upward thumb movement detected ({} pixels) - falling back to standard verification", 
-                    movement);
-                return false;
-            }
-    
-            // If we get here, no movement was detected
-            logger.debug("No thumb movement detected at position y={}", currentPosition.y);
+        if (!isTrackingStarted) {
+            logger.error("Document tracking not started");
             return false;
-    
+        }
+
+        try {
+            // Add initial delay to allow for navigation command to take effect - this may need to be modified in optimisation
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+            
+            long startTime = System.currentTimeMillis();
+            long timeoutMs = (long)(timeout * 1000);
+            int checkCount = 0;
+            
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
+                if (newPosition == null) {
+                    logger.error("Could not find current thumb position");
+                    return false;
+                }
+
+                int movement = newPosition.y - baselineThumbPosition.y;
+                checkCount++;
+                
+                logger.info("Check #{} - Comparing positions - baseline: y={}, current: y={}, movement: {} pixels", 
+                    checkCount, baselineThumbPosition.y, newPosition.y, movement);
+
+                if (movement >= ApplicationConfig.MIN_THUMB_MOVEMENT) {
+                    logger.info("Detected downward thumb movement - document ready");
+                    currentThumbPosition = newPosition;
+                    isTrackingStarted = false;
+                    return true;
+                }
+
+               // TODO: OPTIMISE SLOWDOWN
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+            }
+
+            logger.debug("Timeout reached without detecting movement after {} checks", checkCount);
+            return false;
+
         } catch (Exception e) {
             logger.error("Error in verification: {}", e.getMessage());
             return false;

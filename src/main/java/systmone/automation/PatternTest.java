@@ -55,7 +55,7 @@ public class PatternTest {
     
     private static boolean initializeSystem() {
         try {
-            // First initialize the core components
+            // Initialize the core components
             if (!initializeImageLibrary()) {
                 logger.error("Failed to initialize image library");
                 return false;
@@ -76,7 +76,7 @@ public class PatternTest {
                 return false;
             }
             
-            // Now initialize the UI handler
+            // Initialize the UI handler
             uiHandler = new UiStateHandler(systmOneWindow);
             logger.info("Created UI handler");
             
@@ -269,13 +269,6 @@ public class PatternTest {
         for (int i = 0; i < stats.totalDocuments && !killSwitch.get(); i++) {
             try {
                 processDocument(i, stats);
-                
-                // Only attempt navigation if not at the last document
-                if (i < stats.totalDocuments - 1) {
-                    navigateToNextDocument(stats);  // Updated to pass stats
-                } else {
-                    logger.info("Reached final document - processing complete");
-                }
                 stats.processedDocuments++;
                 
             } catch (Exception e) {
@@ -293,7 +286,7 @@ public class PatternTest {
             selectionBorderPattern, 
             ApplicationConfig.DIALOG_TIMEOUT
         );
-    
+
         int documentNumber = index + 1;
         logger.info("Processing document {} of {} at: ({},{})", 
             documentNumber,
@@ -301,34 +294,30 @@ public class PatternTest {
             documentMatch.x, 
             documentMatch.y
         );
-    
-        // Only try scrollbar verification if we're past document 4
-        if (documentNumber > ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
-            try {
-                if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
-                    logger.warn("Could not verify document loading via scrollbar, falling back to basic verification");
-                    // Instead of throwing an error, wait a bit longer
-                    Thread.sleep(1000);  // Add extra delay for safety
-                }
-            } catch (Exception e) {
-                logger.warn("Scrollbar verification failed, continuing with basic verification");
-                Thread.sleep(1000);  // Add extra delay for safety
-            }
-        }
 
+        // Process the current document
         String documentPath = Paths.get(outputFolder, "Document" + documentNumber + ".pdf")
             .toString();
-            
+                
         if (!ClipboardHelper.setClipboardContent(documentPath)) {
             throw new RuntimeException("Failed to copy document path to clipboard");
         }
 
         printDocument(documentMatch, documentPath);
+
+        // Handle navigation only if this isn't the last document
+        if (documentNumber < stats.totalDocuments) {
+            if (!navigateToNextDocument(stats)) {
+                throw new FindFailed("Navigation to next document failed");
+            }
+        } else {
+            logger.info("Reached final document - processing complete");
         }
+    }
 
     private static void printDocument(Match documentMatch, String savePath) 
             throws FindFailed {
-        // Right click on the document to open context menu
+        // open Document context menu
         documentMatch.rightClick();
         
         // Wait for and click the print menu item
@@ -350,30 +339,42 @@ public class PatternTest {
         logger.info("Saved document to: {}", savePath);
     }
     
-    private static void navigateToNextDocument(ProcessingStats stats) throws FindFailed {
-        systmOneWindow.type(Key.DOWN);
-        
-        // For small batches or early documents, use basic verification
-        if (stats.totalDocuments <= ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR || 
-            stats.processedDocuments < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+    /**
+     * Handles navigation to the next document with appropriate verification based on document number
+     * Returns true if navigation was successful
+     */
+    private static boolean navigateToNextDocument(ProcessingStats stats) 
+    throws FindFailed, InterruptedException 
+    {
+        // For early documents (Set in ApplicationConfig.java), use basic verification
+        if (stats.processedDocuments < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+            systmOneWindow.type(Key.DOWN);
             Match match = uiHandler.waitForStableElement(selectionBorderPattern, 
                 ApplicationConfig.DIALOG_TIMEOUT);
-            if (match == null) {
-                throw new FindFailed("Navigation failed - selection did not move");
-            }
-        } else {
-            // For later documents, use scrollbar verification
-            if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
-                throw new FindFailed("Navigation failed - document loading not confirmed");
-            }
+            return match != null;
         }
+
+        // For later documents, use scrollbar verification (UiStateHandler.java)
+        if (!uiHandler.startDocumentTracking()) {
+
+            // If scrollbar tracking fails, fall back to basic verification (sort of just right click and hope)
+            logger.warn("Could not start scrollbar tracking, falling back to basic verification");
+            systmOneWindow.type(Key.DOWN);
+            Match match = uiHandler.waitForStableElement(selectionBorderPattern, 
+                ApplicationConfig.DIALOG_TIMEOUT);
+            return match != null;
+        }
+
+        // Single navigation command with scrollbar verification
+        systmOneWindow.type(Key.DOWN);
+        return uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT);
     }
 
     private static boolean determineLocation() {
         try {
             logger.info("Starting location determination...");
             
-            // Try Denton patterns first
+            // Try Denton patterns first - needs a refactor to not rely on location based patterns
             Pattern dentonTest = new Pattern("selection_border_denton.png")
                 .similar(ApplicationConfig.LOCATION_SIMILARITY);
             logger.info("Checking for Denton pattern with similarity {}", ApplicationConfig.LOCATION_SIMILARITY);
