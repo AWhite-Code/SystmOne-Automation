@@ -10,10 +10,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
-import java.awt.Rectangle;
-import java.awt.Robot;
-import java.awt.Color;
-import java.awt.image.BufferedImage;
+
 
 import systmone.automation.config.ApplicationConfig;
 
