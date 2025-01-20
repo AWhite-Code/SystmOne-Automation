@@ -11,76 +11,97 @@ import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 import systmone.automation.config.ApplicationConfig;
 
+/**
+ * Main entry point for the SystmOne document processing automation.
+ * This class handles initialization of the system components and orchestrates
+ * the overall document processing workflow.
+ */
 public class PatternTest {
     private static final Logger logger = LoggerFactory.getLogger(PatternTest.class);
     
-    private static String outputFolder;
-    private static UiStateHandler uiHandler;
-    private static SystmOneAutomator automator;
-    
-    // Thread-safe kill switch
+    // Thread-safe kill switch for graceful termination
     private static final AtomicBoolean killSwitch = new AtomicBoolean(false);
 
     public static void main(String[] args) {
-        ProcessingStats stats = new ProcessingStats();
+        ProcessingStats stats = null;
         
         try {
-            if (!initializeSystem()) {
+            // Initialize core system components
+            SystemComponents components = initializeSystem();
+            if (components == null) {
                 logger.error("System initialization failed");
                 return;
             }
             
+            // Set up kill switch monitoring
             setupKillSwitch();
-            processDocuments(stats);
+            
+            // Create and run document processor
+            DocumentProcessor processor = new DocumentProcessor(
+                components.automator,
+                components.uiHandler,
+                components.outputFolder,
+                killSwitch
+            );
+            
+            // Process all documents and get results
+            stats = processor.processDocuments();
             
         } catch (Exception e) {
             logger.error("Critical application failure: " + e.getMessage(), e);
         } finally {
-            SummaryGenerator.generateProcessingSummary(stats);
+            if (stats != null) {
+                SummaryGenerator.generateProcessingSummary(stats);
+            }
         }
     }
     
-    private static boolean initializeSystem() {
+    /**
+     * Initializes all required system components.
+     * Returns null if any component fails to initialize.
+     */
+    private static SystemComponents initializeSystem() {
         try {
-            // Initialize the image library
+            // Initialize the image library first
             if (!initializeImageLibrary()) {
-                return false;
+                return null;
             }
             
             // Determine location and create automator
             ApplicationConfig.Location location = determineLocation();
             if (location == null) {
-                return false;
+                return null;
             }
             
-            // Initialize the automator with appropriate similarity settings
+            // Initialize SystmOne automator with appropriate settings
             double similarity = (location == ApplicationConfig.Location.DENTON) ? 
                 ApplicationConfig.DENTON_SIMILARITY : ApplicationConfig.WOOTTON_SIMILARITY;
             
-            automator = new SystmOneAutomator(location, similarity);
+            SystmOneAutomator automator = new SystmOneAutomator(location, similarity);
+            
+            // Focus the application window
             automator.focus();
             
-            // Initialize output directory
-            if (!initializeOutputDirectory()) {
-                return false;
+            // Create output directory
+            String outputFolder = initializeOutputDirectory();
+            if (outputFolder == null) {
+                return null;
             }
             
-            // Initialize UI handler with the automator's window
-            uiHandler = new UiStateHandler(automator.getWindow());
+            // Initialize UI handler
+            UiStateHandler uiHandler = new UiStateHandler(automator.getWindow());
             
-            // Initialize scrollbar tracking
-            if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
-                logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
-            }
-            
-            return true;
+            return new SystemComponents(automator, uiHandler, outputFolder);
             
         } catch (Exception e) {
             logger.error("Error during system initialization: {}", e.getMessage());
-            return false;
+            return null;
         }
     }
     
+    /**
+     * Initializes the image library for pattern matching.
+     */
     private static boolean initializeImageLibrary() {
         try {
             File imageDir = new File(ApplicationConfig.IMAGE_DIR_PATH).getAbsoluteFile();
@@ -107,21 +128,27 @@ public class PatternTest {
         }
     }
     
-    private static boolean initializeOutputDirectory() {
+    /**
+     * Creates and initializes the output directory for document storage.
+     */
+    private static String initializeOutputDirectory() {
         try {
             String folderName = LocalDateTime.now().format(ApplicationConfig.FOLDER_DATE_FORMAT);
-            outputFolder = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName).toString();
+            String outputFolder = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName).toString();
             
             Files.createDirectories(Paths.get(outputFolder));
             logger.info("Created output directory: {}", outputFolder);
-            return true;
+            return outputFolder;
             
         } catch (Exception e) {
             logger.error("Failed to create output directory: " + e.getMessage());
-            return false;
+            return null;
         }
     }
     
+    /**
+     * Sets up a daemon thread to monitor the kill switch.
+     */
     private static void setupKillSwitch() {
         Thread killSwitchThread = new Thread(() -> {
             while (!killSwitch.get()) {
@@ -138,89 +165,9 @@ public class PatternTest {
         logger.info("Kill switch thread initialized");
     }
     
-    private static void processDocuments(ProcessingStats stats) {
-        logger.info("Starting document processing");
-        
-        stats.totalDocuments = automator.getDocumentCount();
-        if (stats.totalDocuments <= 0) {
-            logger.error("Invalid document count: {}", stats.totalDocuments);
-            return;
-        }
-        
-        logger.info("Processing {} documents", stats.totalDocuments);
-        
-        for (int i = 0; i < stats.totalDocuments && !killSwitch.get(); i++) {
-            try {
-                processDocument(i, stats);
-                stats.processedDocuments++;
-                
-            } catch (Exception e) {
-                String errorMessage = String.format("Error processing document %d: %s", 
-                    i + 1, e.getMessage());
-                stats.errors.add(new DocumentError(i + 1, errorMessage));
-                logger.error(errorMessage, e);
-            }
-        }
-    }
-    
-    private static void processDocument(int index, ProcessingStats stats) 
-            throws FindFailed, InterruptedException {
-        Match documentMatch = uiHandler.waitForStableElement(
-            automator.getSelectionBorderPattern(), 
-            ApplicationConfig.DIALOG_TIMEOUT
-        );
-
-        int documentNumber = index + 1;
-        logger.info("Processing document {} of {} at: ({},{})", 
-            documentNumber,
-            stats.totalDocuments,
-            documentMatch.x, 
-            documentMatch.y
-        );
-
-        String documentPath = Paths.get(outputFolder, "Document" + documentNumber + ".pdf")
-            .toString();
-                
-        if (!ClipboardHelper.setClipboardContent(documentPath)) {
-            throw new RuntimeException("Failed to copy document path to clipboard");
-        }
-
-        automator.printDocument(documentMatch, documentPath);
-
-        if (documentNumber < stats.totalDocuments) {
-            if (!navigateToNextDocument(stats)) {
-                throw new FindFailed("Navigation to next document failed");
-            }
-        } else {
-            logger.info("Reached final document - processing complete");
-        }
-    }
-    
-    private static boolean navigateToNextDocument(ProcessingStats stats) 
-            throws FindFailed, InterruptedException {
-        if (stats.processedDocuments < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
-            automator.navigateDown();
-            Match match = uiHandler.waitForStableElement(
-                automator.getSelectionBorderPattern(), 
-                ApplicationConfig.DIALOG_TIMEOUT
-            );
-            return match != null;
-        }
-
-        if (!uiHandler.startDocumentTracking()) {
-            logger.warn("Could not start scrollbar tracking, falling back to basic verification");
-            automator.navigateDown();
-            Match match = uiHandler.waitForStableElement(
-                automator.getSelectionBorderPattern(), 
-                ApplicationConfig.DIALOG_TIMEOUT
-            );
-            return match != null;
-        }
-
-        automator.navigateDown();
-        return uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT);
-    }
-    
+    /**
+     * Determines the current location based on pattern matching.
+     */
     private static ApplicationConfig.Location determineLocation() {
         try {
             logger.info("Starting location determination...");
@@ -254,6 +201,23 @@ public class PatternTest {
         } catch (Exception e) {
             logger.error("Error in determineLocation: " + e.getMessage(), e);
             return null;
+        }
+    }
+    
+    /**
+     * Helper class to hold initialized system components.
+     * Makes it easier to pass around related components and ensures all are initialized together.
+     * Should be pulled out into its own class later probably
+     */
+    private static class SystemComponents {
+        final SystmOneAutomator automator;
+        final UiStateHandler uiHandler;
+        final String outputFolder;
+        
+        SystemComponents(SystmOneAutomator automator, UiStateHandler uiHandler, String outputFolder) {
+            this.automator = automator;
+            this.uiHandler = uiHandler;
+            this.outputFolder = outputFolder;
         }
     }
 }
