@@ -38,9 +38,9 @@ public class PatternTest {
             
             // Create and run document processor
             DocumentProcessor processor = new DocumentProcessor(
-                components.automator,
-                components.uiHandler,
-                components.outputFolder,
+                components.getAutomator(),    // Note: Now using getter methods
+                components.getUiHandler(),     // instead of direct field access
+                components.getOutputFolder(),
                 killSwitch
             );
             
@@ -91,6 +91,7 @@ public class PatternTest {
             // Initialize UI handler
             UiStateHandler uiHandler = new UiStateHandler(automator.getWindow());
             
+            // Create and return the system components
             return new SystemComponents(automator, uiHandler, outputFolder);
             
         } catch (Exception e) {
@@ -98,6 +99,7 @@ public class PatternTest {
             return null;
         }
     }
+
     
     /**
      * Initializes the image library for pattern matching.
@@ -201,23 +203,6 @@ public class PatternTest {
         } catch (Exception e) {
             logger.error("Error in determineLocation: " + e.getMessage(), e);
             return null;
-        }
-    }
-    
-    /**
-     * Helper class to hold initialized system components.
-     * Makes it easier to pass around related components and ensures all are initialized together.
-     * Should be pulled out into its own class later probably
-     */
-    private static class SystemComponents {
-        final SystmOneAutomator automator;
-        final UiStateHandler uiHandler;
-        final String outputFolder;
-        
-        SystemComponents(SystmOneAutomator automator, UiStateHandler uiHandler, String outputFolder) {
-            this.automator = automator;
-            this.uiHandler = uiHandler;
-            this.outputFolder = outputFolder;
         }
     }
 }
