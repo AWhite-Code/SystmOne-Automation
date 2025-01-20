@@ -33,6 +33,11 @@ public class DocumentProcessor {
         this.outputFolder = outputFolder;
         this.killSwitch = killSwitch;
         this.stats = new ProcessingStats();
+        
+        // Initialize scrollbar tracking if possible
+        if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
+            logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+        }
     }
 
     /**
