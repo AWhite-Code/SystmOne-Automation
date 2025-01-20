@@ -21,7 +21,7 @@ public class ApplicationConfig {
     
     // Timing configurations
     public static final int FOCUS_DELAY_MS = 1000;
-    public static final int NAVIGATION_DELAY_MS = 200;
+    public static final int NAVIGATION_DELAY_MS = 250;
     public static final int CONTEXT_MENU_DELAY_MS = 500;
     public static final int PRINT_DIALOG_DELAY_MS = 2000;
     public static final int SAVE_DIALOG_DELAY_MS = 3000;
