@@ -23,21 +23,21 @@ public class SummaryGenerator {
         logger.info("----------------------------------------");
         logger.info("            Processing Summary           ");
         logger.info("----------------------------------------");
-        logger.info("Total Documents: {}", stats.totalDocuments);
-        logger.info("Successfully Processed: {}", stats.processedDocuments);
-        logger.info("Errors Encountered: {}", stats.errors.size());
+        logger.info("Total Documents: {}", stats.getTotalDocuments());
+        logger.info("Successfully Processed: {}", stats.getProcessedDocuments());
+        logger.info("Errors Encountered: {}", stats.getErrors().size());
         
         // Calculate and display success rate
-        double successRate = (stats.totalDocuments > 0) 
-            ? (double) stats.processedDocuments / stats.totalDocuments * 100 
+        double successRate = (stats.getTotalDocuments() > 0) 
+            ? (double) stats.getProcessedDocuments() / stats.getTotalDocuments() * 100 
             : 0;
         logger.info("Success Rate: {:.2f}%", successRate);
         
         // Show detailed error information for any errors that occurred
-        if (!stats.errors.isEmpty()) {
+        if (!stats.getErrors().isEmpty()) {
             logger.info("\nError Details:");
             logger.info("----------------------------------------");
-            stats.errors.forEach(error -> 
+            stats.getErrors().forEach(error -> 
                 logger.info("Document {}: {}", 
                     error.documentIndex, 
                     error.errorMessage)
