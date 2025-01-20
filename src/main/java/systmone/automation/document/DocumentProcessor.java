@@ -56,30 +56,30 @@ public class DocumentProcessor {
         logger.info("Starting document processing workflow");
         
         // Get total document count and validate
-        stats.totalDocuments = automator.getDocumentCount();
-        if (stats.totalDocuments <= 0) {
-            logger.error("Invalid document count: {}", stats.totalDocuments);
+        stats.setTotalDocuments(automator.getDocumentCount());
+        if (stats.getTotalDocuments() <= 0) {
+            logger.error("Invalid document count: {}", stats.getTotalDocuments());
             return stats;
         }
         
-        logger.info("Beginning processing of {} documents", stats.totalDocuments);
-
+        logger.info("Beginning processing of {} documents", stats.getTotalDocuments());
+    
         // Process each document until complete or killed
-        for (int i = 0; i < stats.totalDocuments && !killSwitch.get(); i++) {
+        for (int i = 0; i < stats.getTotalDocuments() && !killSwitch.get(); i++) {
             try {
                 processSingleDocument(i);
-                stats.processedDocuments++;
+                stats.setProcessedDocuments(stats.getProcessedDocuments() + 1);
                 
             } catch (Exception e) {
                 handleProcessingError(i + 1, e);
             }
         }
-
+    
         if (killSwitch.get()) {
             logger.info("Processing terminated by kill switch after {} documents", 
-                stats.processedDocuments);
+                stats.getProcessedDocuments());
         }
-
+    
         return stats;
     }
 
@@ -100,7 +100,7 @@ public class DocumentProcessor {
         int documentNumber = index + 1;
         logger.info("Processing document {} of {} at coordinates ({},{})",
             documentNumber,
-            stats.totalDocuments,
+            stats.getTotalDocuments(),
             documentMatch.x,
             documentMatch.y
         );
@@ -110,9 +110,10 @@ public class DocumentProcessor {
         saveDocument(documentMatch, documentPath);
 
         // Navigate to next document if not on the last one
-        if (documentNumber < stats.totalDocuments) {
-            handleNavigation();
-        } else {
+        if (documentNumber < stats.getTotalDocuments()) {  // Fixed typo in 'getotalDocuments'
+        handleNavigation();
+        } 
+        else {
             logger.info("Reached final document - processing complete");
         }
     }
@@ -144,7 +145,7 @@ public class DocumentProcessor {
      */
     private void handleNavigation() throws FindFailed, InterruptedException {
         // For early documents, use basic verification
-        if (stats.processedDocuments < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+        if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
             performBasicNavigation();
             return;
         }
@@ -186,7 +187,8 @@ public class DocumentProcessor {
     private void handleProcessingError(int documentNumber, Exception e) {
         String errorMessage = String.format("Error processing document %d: %s",
             documentNumber, e.getMessage());
-        stats.errors.add(new DocumentError(documentNumber, errorMessage));
+        DocumentError error = new DocumentError(documentNumber, errorMessage);
+        stats.addError(error);  // Using the new addError method
         logger.error(errorMessage, e);
     }
 }
