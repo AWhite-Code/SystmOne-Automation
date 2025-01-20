@@ -1,5 +1,8 @@
 package systmone.automation;
 
+
+import java.util.Arrays;
+
 import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,8 +82,7 @@ public class SystmOneAutomator {
     }
 
     private int extractNumberFromText(String text) {
-        return text.split("\\s+")
-            .stream()
+        return Arrays.stream(text.split("\\s+"))
             .filter(part -> part.matches("\\d+"))
             .findFirst()
             .map(Integer::parseInt)
