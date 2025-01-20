@@ -39,8 +39,8 @@ public class SummaryGenerator {
             logger.info("----------------------------------------");
             stats.getErrors().forEach(error -> 
                 logger.info("Document {}: {}", 
-                    error.documentIndex, 
-                    error.errorMessage)
+                    error.getDocumentIndex(), 
+                    error.getErrorMessage())
             );
         }
         
