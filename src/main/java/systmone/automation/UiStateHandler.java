@@ -7,11 +7,6 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
-import java.io.File;
-import java.awt.Graphics2D;
-
-import javax.imageio.ImageIO;
 
 import systmone.automation.config.ApplicationConfig;
 
@@ -19,20 +14,11 @@ public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
     private final Region uiRegion;
-    private Match lastKnownPosition;
     private Robot robot;
-    private Pattern selectionPattern;
     
     // Scrollbar tracking state
     private Rectangle baselineThumbPosition;    // Position at start of document load
-    private Rectangle currentThumbPosition;     // Current detected position
-    private boolean verificationInProgress;     // Flag to prevent duplicate checks
-    private Rectangle lastKnownThumbBounds;  // Store the last known position of the thumb
     private Region fixedScrollbarRegion;
-    private Integer initialThumbY;
-
-    private Rectangle scrollbarRegion;
-    private Integer lastThumbY;  // Track the last known Y position of the thumb
 
     private boolean isTrackingStarted;         // Flag to indicate if we're actively tracking
 
@@ -69,7 +55,6 @@ public class UiStateHandler {
                 if (isMatchStable(lastMatch, currentMatch)) {
                     stabilityCount++;
                     if (stabilityCount >= ApplicationConfig.REQUIRED_STABILITY_COUNT) {
-                        lastKnownPosition = currentMatch;
                         return currentMatch;
                     }
                 } else {
@@ -120,8 +105,6 @@ public class UiStateHandler {
      * Initializes scrollbar tracking using color detection
      */
     public boolean initializeScrollbarTracking(Pattern selectionPattern) {
-        this.selectionPattern = selectionPattern;
-        
         try {
             Match selectionMatch = uiRegion.exists(selectionPattern);
             if (selectionMatch == null) {
@@ -146,29 +129,24 @@ public class UiStateHandler {
             logger.info("Setting up initial search region: y={} to {}", 
                 searchRegion.y, searchRegion.y + searchRegion.h);
             
-            Rectangle thumbBounds = findScrollbarThumb(searchRegion);
-            if (thumbBounds != null) {
-
-                // Store both the initial position and the search region
-                initialThumbY = thumbBounds.y;
-                lastKnownThumbBounds = thumbBounds;
-                
-                // Create our ongoing tracking region
-                fixedScrollbarRegion = new Region(
-                    thumbBounds.x,
-                    thumbBounds.y - UPWARD_PADDING,    // Maintain upward visibility
-                    SCROLLBAR_WIDTH,
-                    SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
-                );
-                
-                logger.info("Initialized scrollbar tracking: thumb at y={}, search region y={} to {}, height={}", 
-                    thumbBounds.y,
-                    fixedScrollbarRegion.y,
-                    fixedScrollbarRegion.y + fixedScrollbarRegion.h,
-                    fixedScrollbarRegion.h);
+                Rectangle thumbBounds = findScrollbarThumb(searchRegion);
+                if (thumbBounds != null) {
+                    // Create our ongoing tracking region
+                    fixedScrollbarRegion = new Region(
+                        thumbBounds.x,
+                        thumbBounds.y - UPWARD_PADDING,    // Maintain upward visibility
+                        SCROLLBAR_WIDTH,
+                        SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
+                    );
                     
-                return true;
-            }
+                    logger.info("Initialized scrollbar tracking: thumb at y={}, search region y={} to {}, height={}", 
+                        thumbBounds.y,
+                        fixedScrollbarRegion.y,
+                        fixedScrollbarRegion.y + fixedScrollbarRegion.h,
+                        fixedScrollbarRegion.h);
+                        
+                    return true;
+                }
     
             logger.error("Could not locate scrollbar thumb in expected region");
             return false;
@@ -262,14 +240,16 @@ public class UiStateHandler {
             logger.error("Document tracking not started");
             return false;
         }
-
+    
         try {
-            // Add initial delay to allow for navigation command to take effect - this may need to be modified in optimisation
+            // Initial delay to allow UI to start processing the navigation command
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
             int checkCount = 0;
+            int consecutiveMatchCount = 0;  // Track stable positions
+            Rectangle lastPosition = null;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
@@ -277,27 +257,43 @@ public class UiStateHandler {
                     logger.error("Could not find current thumb position");
                     return false;
                 }
-
+    
                 int movement = newPosition.y - baselineThumbPosition.y;
                 checkCount++;
                 
                 logger.info("Check #{} - Comparing positions - baseline: y={}, current: y={}, movement: {} pixels", 
                     checkCount, baselineThumbPosition.y, newPosition.y, movement);
-
+    
                 if (movement >= ApplicationConfig.MIN_THUMB_MOVEMENT) {
-                    logger.info("Detected downward thumb movement - document ready");
-                    currentThumbPosition = newPosition;
-                    isTrackingStarted = false;
-                    return true;
+                    // Found movement, but verify it's stable
+                    if (lastPosition != null && lastPosition.y == newPosition.y) {
+                        consecutiveMatchCount++;
+                        if (consecutiveMatchCount >= 2) {  // Require 2 consecutive stable readings
+                            logger.info("Verified stable downward thumb movement - document ready");
+                            isTrackingStarted = false;
+                            return true;
+                        }
+                    } else {
+                        consecutiveMatchCount = 1;  // Reset counter for new position
+                    }
+                } else {
+                    consecutiveMatchCount = 0;  // Reset counter when no movement detected
+                    
+                    // If we've checked multiple times with no movement, try sending DOWN again
+                    if (checkCount > 5 && checkCount % 5 == 0) {  // Every 5 checks after the first 5
+                        logger.warn("No movement detected after {} checks, resending DOWN command", checkCount);
+                        uiRegion.type(Key.DOWN);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);  // Give UI time to process
+                    }
                 }
-
-               // TODO: OPTIMISE SLOWDOWN
+    
+                lastPosition = newPosition;
                 Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
             }
-
-            logger.debug("Timeout reached without detecting movement after {} checks", checkCount);
+    
+            logger.debug("Timeout reached without detecting stable movement after {} checks", checkCount);
             return false;
-
+    
         } catch (Exception e) {
             logger.error("Error in verification: {}", e.getMessage());
             return false;
