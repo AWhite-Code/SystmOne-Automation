@@ -31,7 +31,6 @@ public class UiStateHandler {
         }
     }
     
-
     /**
      * Waits for a UI element to appear and remain stable in position.
      */
@@ -279,7 +278,7 @@ public class UiStateHandler {
                 } else {
                     consecutiveMatchCount = 0;  // Reset counter when no movement detected
                     
-                    // If we've checked multiple times with no movement, try sending DOWN again
+                    // If checked multiple times with no movement, try sending DOWN again
                     if (checkCount > 5 && checkCount % 5 == 0) {  // Every 5 checks after the first 5
                         logger.warn("No movement detected after {} checks, resending DOWN command", checkCount);
                         uiRegion.type(Key.DOWN);
