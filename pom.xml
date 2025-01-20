@@ -77,7 +77,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>systmone.automation.PatternTest</mainClass>
+                            <mainClass>systmone.automation.Application</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -98,7 +98,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                     <configuration>
-                        <mainClass>systmone.automation.PatternTest</mainClass>
+                        <mainClass>systmone.automation.Application</mainClass>
                     </configuration>
             </plugin>
         </plugins>
