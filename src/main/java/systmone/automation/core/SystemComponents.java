@@ -1,4 +1,7 @@
-package systmone.automation;
+package systmone.automation.core;
+
+import systmone.automation.ui.SystmOneAutomator;
+import systmone.automation.ui.UiStateHandler;
 
 /**
  * Represents the complete set of initialized components required for the automation system.

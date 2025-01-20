@@ -1,10 +1,15 @@
-package systmone.automation;
+package systmone.automation.document;
 
 import org.sikuli.script.FindFailed;
 import org.sikuli.script.Match;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.state.ProcessingStats;
+import systmone.automation.ui.SystmOneAutomator;
+import systmone.automation.ui.UiStateHandler;
+import systmone.automation.util.ClipboardHelper;
 
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;

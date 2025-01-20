@@ -1,4 +1,4 @@
-package systmone.automation;
+package systmone.automation.ui;
 
 
 import java.util.Arrays;

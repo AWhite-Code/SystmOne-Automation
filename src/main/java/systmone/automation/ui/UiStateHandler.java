@@ -1,4 +1,4 @@
-package systmone.automation;
+package systmone.automation.ui;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package systmone.automation;
+package systmone.automation.document;
 
 public class DocumentError {
     final int documentIndex;

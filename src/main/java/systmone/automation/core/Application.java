@@ -1,7 +1,13 @@
-package systmone.automation;
+package systmone.automation.core;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import systmone.automation.document.DocumentProcessor;
+import systmone.automation.state.InitialisationResult;
+import systmone.automation.state.ProcessingStats;
+import systmone.automation.util.SummaryGenerator;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**

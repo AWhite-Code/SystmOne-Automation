@@ -1,4 +1,4 @@
-package systmone.automation;
+package systmone.automation.util;
 
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;

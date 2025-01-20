@@ -1,4 +1,6 @@
-package systmone.automation;
+package systmone.automation.state;
+
+import systmone.automation.core.SystemComponents;
 
 /**
  * Represents the outcome of a system initialization attempt.

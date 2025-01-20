@@ -1,4 +1,4 @@
-package systmone.automation;
+package systmone.automation.core;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;
@@ -8,7 +8,11 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.state.InitialisationResult;
+import systmone.automation.ui.SystmOneAutomator;
+import systmone.automation.ui.UiStateHandler;
 
 /**
  * Handles the complete initialization process for the SystmOne automation system.

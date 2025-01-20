@@ -1,7 +1,9 @@
-package systmone.automation;
+package systmone.automation.util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import systmone.automation.state.ProcessingStats;
 
 public class SummaryGenerator {
 
