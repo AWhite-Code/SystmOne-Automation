@@ -1,7 +1,6 @@
 package systmone.automation.document;
 
 import org.sikuli.script.FindFailed;
-import org.sikuli.script.KeyModifier;
 import org.sikuli.script.Match;
 import org.sikuli.script.Key;
 import org.slf4j.Logger;

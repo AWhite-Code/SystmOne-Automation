@@ -131,41 +131,4 @@ public class PopupHandler {
         popupCount = 0;
         logger.debug("Reset popup handler state");
     }
-    
-    /**
-     * Validates that a popup match is in the expected screen position.
-     * SystmOne popups are always centered in the main window.
-     */
-    private boolean isPopupPositionValid(Match popupMatch) {
-        // Get window dimensions
-        int windowCenterX = mainWindow.x + (mainWindow.w / 2);
-        int windowCenterY = mainWindow.y + (mainWindow.h / 2);
-        
-        // Calculate popup center (assuming popup title is near the top of the popup)
-        int popupCenterX = popupMatch.x + (popupMatch.w / 2);
-        
-        // For Y position, we need to be more flexible since the title is at the top
-        // The popup Y coordinate will be above the window center
-        
-        // Allow for more generous position tolerance
-        int tolerance = ApplicationConfig.POPUP_POSITION_TOLERANCE;  // Maybe 150 pixels
-        
-        // Log the position calculations for debugging
-        logger.debug("Window center: ({}, {})", windowCenterX, windowCenterY);
-        logger.debug("Popup position: ({}, {})", popupMatch.x, popupMatch.y);
-        logger.debug("Popup center X: {}", popupCenterX);
-        
-        // Check if popup is roughly centered horizontally and in the upper half of the window
-        boolean isValid = Math.abs(popupCenterX - windowCenterX) <= tolerance &&
-                         popupMatch.y > mainWindow.y &&  // Must be below top of window
-                         popupMatch.y < windowCenterY;   // Must be above vertical center
-        
-        if (!isValid) {
-            logger.debug("Position validation failed: X-offset={}, Y-position={}",
-                Math.abs(popupCenterX - windowCenterX),
-                popupMatch.y - mainWindow.y);
-        }
-        
-        return isValid;
-    }
 }
