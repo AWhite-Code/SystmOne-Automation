@@ -13,6 +13,8 @@ import systmone.automation.config.ApplicationConfig;
 public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
+    private final Region mainWindow;          // Added for popup handling
+    private final Pattern selectionBorderPattern;  // Added for document verification
     private final Region uiRegion;
     private Robot robot;
     private PopupHandler popupHandler;
@@ -23,9 +25,12 @@ public class UiStateHandler {
 
     private boolean isTrackingStarted;         // Flag to indicate if we're actively tracking
 
-    public UiStateHandler(Region uiRegion, PopupHandler popupHandler) {
+    public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, PopupHandler popupHandler) {
         this.uiRegion = uiRegion;
+        this.mainWindow = mainWindow;
+        this.selectionBorderPattern = selectionBorderPattern;
         this.popupHandler = popupHandler;
+        
         try {
             this.robot = new Robot();
         } catch (Exception e) {
@@ -241,7 +246,7 @@ public class UiStateHandler {
             logger.error("Document tracking not started");
             return false;
         }
-    
+
         try {
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
@@ -250,37 +255,62 @@ public class UiStateHandler {
             int checkCount = 0;
             int consecutiveMatchCount = 0;
             Rectangle lastPosition = null;
+            int popupHandledCount = 0;
+            final int MAX_POPUP_HANDLES = 3;  // Limit popup retry attempts
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 // Check for popup before any UI interaction
                 if (popupHandler.isPopupPresent()) {
-                    logger.info("Popup detected during verification - pausing operation");
-                    // Wait for popup to be handled - this is where we'll expand functionality later
-                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-                    // Reset our timeout to give full time after popup
+                    logger.info("Popup detected during document verification - attempt {}", 
+                        popupHandledCount + 1);
+                    
+                    if (popupHandledCount >= MAX_POPUP_HANDLES) {
+                        logger.error("Exceeded maximum popup handling attempts");
+                        return false;
+                    }
+                    
+                    // Dismiss popup with Enter key (assuming "Yes" is the safe default)
+                    popupHandler.dismissPopup(true);
+                    popupHandledCount++;
+                    
+                    // After handling popup, we need to:
+                    // 1. Reset our consecutive match counting
+                    consecutiveMatchCount = 0;
+                    lastPosition = null;
+                    
+                    // 2. Give the UI time to stabilize
+                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    
+                    // 3. Verify our document selection is still valid
+                    Match documentBorder = mainWindow.exists(selectionBorderPattern);
+                    if (documentBorder == null) {
+                        logger.warn("Lost document selection after popup - retrying DOWN key");
+                        mainWindow.type(Key.DOWN);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    }
+                    
+                    // 4. Reset our timeout to give full time for verification
                     startTime = System.currentTimeMillis();
-                    continue;  // Skip this iteration and recheck
+                    continue;
                 }
-    
+
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
                     // Could be null because of popup - verify
                     if (popupHandler.isPopupPresent()) {
-                        logger.info("Popup detected after failed thumb detection - pausing operation");
-                        Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-                        startTime = System.currentTimeMillis();
-                        continue;
+                        logger.info("Popup detected after failed thumb detection");
+                        continue;  // Go back to start of loop to handle popup
                     }
                     logger.error("Could not find current thumb position");
                     return false;
                 }
-    
+
                 int movement = newPosition.y - baselineThumbPosition.y;
                 checkCount++;
                 
-                logger.info("Check #{} - Comparing positions - baseline: y={}, current: y={}, movement: {} pixels", 
+                logger.debug("Check #{} - Comparing positions - baseline: y={}, current: y={}, movement: {} pixels", 
                     checkCount, baselineThumbPosition.y, newPosition.y, movement);
-    
+
                 if (movement >= ApplicationConfig.MIN_THUMB_MOVEMENT) {
                     if (lastPosition != null && lastPosition.y == newPosition.y) {
                         consecutiveMatchCount++;
@@ -298,31 +328,31 @@ public class UiStateHandler {
                     if (checkCount > 5 && checkCount % 5 == 0) {
                         // Check for popup before sending additional DOWN
                         if (popupHandler.isPopupPresent()) {
-                            logger.info("Popup detected before resending DOWN - pausing operation");
-                            Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-                            startTime = System.currentTimeMillis();
-                            continue;
+                            logger.info("Popup detected before resending DOWN");
+                            continue;  // Go back to start of loop to handle popup
                         }
                         
-                        logger.warn("No movement detected after {} checks, resending DOWN command", checkCount);
-                        uiRegion.type(Key.DOWN);
+                        logger.warn("No movement detected after {} checks, resending DOWN command", 
+                            checkCount);
+                        mainWindow.type(Key.DOWN);
                         Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     }
                 }
-    
+
                 lastPosition = newPosition;
                 Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
             }
-    
-            logger.debug("Timeout reached without detecting stable movement after {} checks", checkCount);
+
+            logger.debug("Timeout reached without detecting stable movement after {} checks", 
+                checkCount);
             return false;
-    
+
         } catch (Exception e) {
             logger.error("Error in verification: {}", e.getMessage());
             return false;
         }
     }
-    
+        
     private boolean isMatchStable(Match lastMatch, Match currentMatch) {
         if (lastMatch == null) {
             return false;
