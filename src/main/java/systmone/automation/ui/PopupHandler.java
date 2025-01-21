@@ -68,51 +68,79 @@ public class PopupHandler {
      */
     public boolean isPopupPresent() {
         try {
-            // Take a small sample of pixels in the popup region
-            // We'll look for the popup's background color
-            Color centerColor = robot.getPixelColor(screenCenterX, screenCenterY);
+            // Sample multiple points in the popup region for more reliable detection
+            Point[] samplePoints = {
+                new Point(screenCenterX, screenCenterY),
+                new Point(screenCenterX, screenCenterY - 50),  // Top of expected popup
+                new Point(screenCenterX, screenCenterY + 50)   // Bottom of expected popup
+            };
+    
+            // Check multiple points to confirm popup presence
+            for (Point point : samplePoints) {
+                if (point.x >= popupRegion.x && 
+                    point.x <= popupRegion.x + popupRegion.w &&
+                    point.y >= popupRegion.y && 
+                    point.y <= popupRegion.y + popupRegion.h) {
+                    
+                    Color pointColor = robot.getPixelColor(point.x, point.y);
+                    if (isPopupColor(pointColor)) {
+                        return true;
+                    }
+                }
+            }
             
-            // If the color matches expected popup background
-            // (you'll need to determine the actual color)
-            return isPopupColor(centerColor);
-            
+            return false;
+    
         } catch (Exception e) {
             logger.warn("Error checking for popup", e);
             return false;
         }
     }
+
+    /**
+     * Determines if a given color matches the expected popup background color.
+     * Uses the same color tolerance approach as UiStateHandler for consistency.
+     */
+    private boolean isPopupColor(Color color) {
+        // Define expected popup background color (you'll need to adjust these values)
+        final Color POPUP_BACKGROUND = new Color(240, 240, 240);  // Light gray, typical for Windows dialogs
+        
+        return Math.abs(color.getRed() - POPUP_BACKGROUND.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
+            Math.abs(color.getGreen() - POPUP_BACKGROUND.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
+            Math.abs(color.getBlue() - POPUP_BACKGROUND.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
+    }
     
     /**
      * Handles recovery after a popup is dismissed
      */
-    public boolean recoverFromPopup() {
+    private boolean recoverFromPopup() {
         // First, verify popup is actually gone
         if (isPopupPresent()) {
             return false;
         }
-        
+    
         try {
-            // 1. Re-verify our document selection
-            Match documentMatch = uiHandler.waitForStableElement(
-                automator.getSelectionBorderPattern(),
+            // 1. Re-verify our document selection using our stored uiStateHandler
+            Match documentMatch = this.uiStateHandler.waitForStableElement(
+                this.automator.getSelectionBorderPattern(),
                 ApplicationConfig.DIALOG_TIMEOUT
             );
-            
+    
             if (documentMatch == null) {
                 logger.error("Could not recover document selection after popup");
                 return false;
             }
-            
-            // 2. If we were tracking the scrollbar, we need to reset
-            if (uiHandler.isTrackingStarted()) {  // You'll need to add this method
-                if (!uiHandler.startDocumentTracking()) {
+    
+            // 2. Check scrollbar tracking state using our stored uiStateHandler
+            if (this.uiStateHandler.isTrackingActive()) {  // Changed method name to match existing code
+                if (!this.uiStateHandler.startDocumentTracking()) {
                     logger.warn("Could not restart scrollbar tracking after popup");
                     // We can continue, just with degraded verification
                 }
             }
-            
+    
             return true;
-            
+    
         } catch (Exception e) {
             logger.error("Error during popup recovery", e);
             return false;
