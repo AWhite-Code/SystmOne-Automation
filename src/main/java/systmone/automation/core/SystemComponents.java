@@ -24,23 +24,17 @@ public class SystemComponents {
     private final String outputFolder;
 
     /**
-     * Creates a new SystemComponents instance with all required components.
-     * Components are initialized in a specific order to maintain proper dependency management.
-     * The PopupHandler is created after the automator but before the UiStateHandler to ensure
-     * proper initialization order and avoid circular dependencies.
+     * Creates a new SystemComponents instance with proper component initialization order.
+     * Components are created here rather than passed in to ensure correct dependency flow.
      * 
      * @param automator The initialized SystmOne automator
-     * @param uiHandler The UI state handler
      * @param outputFolder The path to the output folder
-     * @throws IllegalArgumentException if any component is null
+     * @throws IllegalArgumentException if any parameter is null
      */
-    public SystemComponents(SystmOneAutomator automator, UiStateHandler uiHandler, String outputFolder) {
+    public SystemComponents(SystmOneAutomator automator, String outputFolder) {
         // Validate primary components
         if (automator == null) {
             throw new IllegalArgumentException("Automator cannot be null");
-        }
-        if (uiHandler == null) {
-            throw new IllegalArgumentException("UI Handler cannot be null");
         }
         if (outputFolder == null || outputFolder.trim().isEmpty()) {
             throw new IllegalArgumentException("Output folder path cannot be null or empty");
@@ -50,12 +44,17 @@ public class SystemComponents {
         this.automator = automator;
         this.outputFolder = outputFolder;
         
-        // Initialize PopupHandler before UiStateHandler
-        // This ensures popup handling capabilities are available for UI state management
-        this.popupHandler = new PopupHandler(this);
-        
-        // Store UiStateHandler after PopupHandler initialization
-        this.uiHandler = uiHandler;
+        // Create components in correct order
+        this.popupHandler = createPopupHandler();
+        this.uiHandler = createUiStateHandler();
+    }
+
+    private PopupHandler createPopupHandler() {
+        return new PopupHandler(this.automator.getWindow());
+    }
+
+    private UiStateHandler createUiStateHandler() {
+        return new UiStateHandler(this.automator.getWindow(), this.popupHandler);
     }
 
     /**

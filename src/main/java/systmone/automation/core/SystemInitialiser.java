@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
-import systmone.automation.ui.UiStateHandler;
 
 /**
  * Handles the complete initialization process for the SystmOne automation system.
@@ -57,11 +56,15 @@ public class SystemInitialiser {
                 return InitialisationResult.failed("Failed to create output directory");
             }
 
-            // Step 5: Create UI handler
-            UiStateHandler uiHandler = new UiStateHandler(automator.getWindow());
+            // Step 5: Create system components
+            // Note: We no longer create UiStateHandler here - SystemComponents handles that
+            SystemComponents components = new SystemComponents(automator, outputFolder);
+            
+            // Step 6: Verify complete initialization
+            if (components.getUiHandler() == null || components.getPopupHandler() == null) {
+                return InitialisationResult.failed("Failed to initialize all required components");
+            }
 
-            // Create system components with all initialized parts
-            SystemComponents components = new SystemComponents(automator, uiHandler, outputFolder);
             return InitialisationResult.succeeded(components);
 
         } catch (Exception e) {
