@@ -4,6 +4,7 @@ import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 
+import org.sikuli.script.Region;
 /**
  * Represents the complete set of initialized components required for the automation system.
  * This class ensures all necessary components are present and valid before the system starts.
@@ -32,7 +33,7 @@ public class SystemComponents {
      * @throws IllegalArgumentException if any parameter is null
      */
     public SystemComponents(SystmOneAutomator automator, String outputFolder) {
-        // Validate primary components
+        // Validation
         if (automator == null) {
             throw new IllegalArgumentException("Automator cannot be null");
         }
@@ -40,21 +41,27 @@ public class SystemComponents {
             throw new IllegalArgumentException("Output folder path cannot be null or empty");
         }
 
+        // Get the window region once - this prevents multiple calls to getWindow()
+        Region mainWindow = automator.getWindow();
+        if (mainWindow == null) {
+            throw new IllegalArgumentException("Could not get main window region from automator");
+        }
+
         // Store primary components
         this.automator = automator;
         this.outputFolder = outputFolder;
         
-        // Create components in correct order
-        this.popupHandler = createPopupHandler();
-        this.uiHandler = createUiStateHandler();
+        // Create components in correct order, using the pre-fetched window
+        this.popupHandler = createPopupHandler(mainWindow);
+        this.uiHandler = createUiStateHandler(mainWindow, this.popupHandler);
     }
 
-    private PopupHandler createPopupHandler() {
-        return new PopupHandler(this.automator.getWindow());
+    private PopupHandler createPopupHandler(Region mainWindow) {
+        return new PopupHandler(mainWindow);
     }
 
-    private UiStateHandler createUiStateHandler() {
-        return new UiStateHandler(this.automator.getWindow(), this.popupHandler);
+    private UiStateHandler createUiStateHandler(Region mainWindow, PopupHandler popupHandler) {
+        return new UiStateHandler(mainWindow, popupHandler);
     }
 
     /**
