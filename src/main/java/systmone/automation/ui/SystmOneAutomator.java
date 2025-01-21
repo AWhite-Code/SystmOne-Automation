@@ -24,6 +24,7 @@ public class SystmOneAutomator {
     private final Pattern printMenuItemPattern;
     private final Pattern documentCountPattern;
     private final Pattern saveDialogPattern;
+    private final PopupHandler popupHandler;
 
     public SystmOneAutomator(ApplicationConfig.Location location, double patternSimilarity) throws FindFailed {
         this.location = location;
@@ -33,6 +34,7 @@ public class SystmOneAutomator {
         this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
         this.documentCountPattern = initializePattern("document_count", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
+        this.popupHandler = new PopupHandler(systmOneWindow);
         
         if (systmOneWindow == null) {
             throw new FindFailed("Failed to initialize SystmOne window");
@@ -90,19 +92,69 @@ public class SystmOneAutomator {
     }
 
     public void printDocument(Match documentMatch, String savePath) throws FindFailed {
+        PopupHandler popupHandler = new PopupHandler(systmOneWindow);
+        
+        // Right-click to open context menu
         documentMatch.rightClick();
         
-        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
-            ApplicationConfig.MENU_TIMEOUT);
+        // Wait for print menu item, handling any popups
+        Match printMenuItem = null;
+        long startTime = System.currentTimeMillis();
+        
+        while (System.currentTimeMillis() - startTime < ApplicationConfig.DIALOG_TIMEOUT * 1000) {
+            // Check for and handle popups before looking for menu
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Handling popup during print menu operation");
+                popupHandler.dismissPopup(false);  // Use ESC to dismiss
+                // Re-attempt right-click as menu may have closed
+                documentMatch.rightClick();
+            }
+    
+            printMenuItem = systmOneWindow.exists(printMenuItemPattern);
+            if (printMenuItem != null) break;
+            
+            try {
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new FindFailed("Print operation interrupted");
+            }
+        }
+        
+        if (printMenuItem == null) {
+            throw new FindFailed("Print menu item not found after popup handling");
+        }
+        
+        // Click print menu item
         printMenuItem.click();
         
-        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+        // Wait for and handle save dialog
+        Match saveDialog = systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
+        // Handle path copying and save operation
         systmOneWindow.type("a", KeyModifier.CTRL);
         systmOneWindow.type("v", KeyModifier.CTRL);
         systmOneWindow.type(Key.ENTER);
         
-        systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+        // Wait for save dialog to close, handling any popups
+        long saveStartTime = System.currentTimeMillis();
+        while (!systmOneWindow.waitVanish(saveDialogPattern, 1)) {  // Short timeout for quick checks
+            if (System.currentTimeMillis() - saveStartTime > ApplicationConfig.DIALOG_TIMEOUT * 1000) {
+                throw new FindFailed("Save dialog did not close within timeout");
+            }
+            
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Handling popup during save operation");
+                popupHandler.dismissPopup(false);
+            }
+            
+            try {
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new FindFailed("Save operation interrupted");
+            }
+        }
         
         logger.info("Saved document to: {}", savePath);
     }
@@ -113,6 +165,13 @@ public class SystmOneAutomator {
 
     public Match waitForStableElement(int timeout) throws FindFailed {
         return systmOneWindow.wait(selectionBorderPattern, timeout);
+    }
+    
+    // Getters
+
+    
+    public PopupHandler getPopupHandler() {
+        return popupHandler;
     }
 
     public Region getWindow() {

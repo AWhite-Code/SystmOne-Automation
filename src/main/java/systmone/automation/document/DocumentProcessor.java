@@ -1,12 +1,15 @@
 package systmone.automation.document;
 
 import org.sikuli.script.FindFailed;
+import org.sikuli.script.KeyModifier;
 import org.sikuli.script.Match;
+import org.sikuli.script.Key;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.ProcessingStats;
+import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 import systmone.automation.util.ClipboardHelper;
@@ -131,13 +134,52 @@ public class DocumentProcessor {
      * Coordinates clipboard operations and UI interactions for saving.
      */
     private void saveDocument(Match documentMatch, String documentPath) 
-            throws FindFailed {
-        if (!ClipboardHelper.setClipboardContent(documentPath)) {
-            throw new RuntimeException("Failed to copy document path to clipboard");
+    throws FindFailed, InterruptedException {
+        PopupHandler popupHandler = automator.getPopupHandler();
+        boolean saveCompleted = false;
+        int attempts = 0;
+        final int MAX_SAVE_ATTEMPTS = 3;
+
+        while (!saveCompleted && attempts < MAX_SAVE_ATTEMPTS) {
+            attempts++;
+            logger.info("Starting save attempt {} of {}", attempts, MAX_SAVE_ATTEMPTS);
+
+            try {
+                // Ensure clipboard has the correct path
+                if (!ClipboardHelper.setClipboardContent(documentPath)) {
+                    throw new RuntimeException("Failed to copy document path to clipboard");
+                }
+
+                // Start print operation
+                automator.printDocument(documentMatch, documentPath);
+                saveCompleted = true;
+
+            } catch (FindFailed e) {
+                // Wait a moment for any popup to fully appear
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                
+                // Look for the retry popup
+                if (popupHandler.isPopupPresent()) {
+                    logger.info("Print retry popup detected - accepting retry");
+                    
+                    // Press Enter to accept retry (since Yes is pre-selected)
+                    automator.getWindow().type(Key.ENTER);
+                    
+                    // Give the system time to bring up the new save dialog
+                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    continue;  // Start fresh with the new save dialog
+                } else {
+                    // If no retry popup found, this is an unexpected error
+                    logger.error("Save failed without retry option: {}", e.getMessage());
+                    throw e;
+                }
+            }
         }
 
-        automator.printDocument(documentMatch, documentPath);
-    }
+if (!saveCompleted) {
+    throw new FindFailed("Failed to save document after " + MAX_SAVE_ATTEMPTS + " attempts");
+}
+}
 
     /**
      * Manages navigation between documents, using either basic or scrollbar verification
