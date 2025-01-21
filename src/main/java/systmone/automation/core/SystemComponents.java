@@ -1,5 +1,6 @@
 package systmone.automation.core;
 
+import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 
@@ -7,15 +8,26 @@ import systmone.automation.ui.UiStateHandler;
  * Represents the complete set of initialized components required for the automation system.
  * This class ensures all necessary components are present and valid before the system starts.
  * It acts as a container for passing related components together through the application.
+ * 
+ * The components are initialized in a specific order to handle dependencies:
+ * 1. SystmOneAutomator - Core automation functionality
+ * 2. PopupHandler - Manages popup detection and handling
+ * 3. UiStateHandler - Manages UI state and verification
+ * 
+ * This ordering ensures each component has access to its required dependencies while
+ * avoiding circular references.
  */
 public class SystemComponents {
     private final SystmOneAutomator automator;
     private final UiStateHandler uiHandler;
+    private final PopupHandler popupHandler;
     private final String outputFolder;
 
     /**
      * Creates a new SystemComponents instance with all required components.
-     * Validates that no component is null to ensure system integrity.
+     * Components are initialized in a specific order to maintain proper dependency management.
+     * The PopupHandler is created after the automator but before the UiStateHandler to ensure
+     * proper initialization order and avoid circular dependencies.
      * 
      * @param automator The initialized SystmOne automator
      * @param uiHandler The UI state handler
@@ -23,7 +35,7 @@ public class SystemComponents {
      * @throws IllegalArgumentException if any component is null
      */
     public SystemComponents(SystmOneAutomator automator, UiStateHandler uiHandler, String outputFolder) {
-        // Validate all components are present
+        // Validate primary components
         if (automator == null) {
             throw new IllegalArgumentException("Automator cannot be null");
         }
@@ -34,12 +46,32 @@ public class SystemComponents {
             throw new IllegalArgumentException("Output folder path cannot be null or empty");
         }
 
+        // Store primary components
         this.automator = automator;
-        this.uiHandler = uiHandler;
         this.outputFolder = outputFolder;
+        
+        // Initialize PopupHandler before UiStateHandler
+        // This ensures popup handling capabilities are available for UI state management
+        this.popupHandler = new PopupHandler(this);
+        
+        // Store UiStateHandler after PopupHandler initialization
+        this.uiHandler = uiHandler;
     }
 
     /**
+     * Returns the PopupHandler component responsible for detecting and managing
+     * system popups during automation.
+     * 
+     * @return The popup handler component
+     */
+    public PopupHandler getPopupHandler() {
+        return popupHandler;
+    }
+
+    /**
+     * Returns the SystmOne automator component that handles core automation
+     * interactions with the SystmOne application.
+     * 
      * @return The SystmOne automator component
      */
     public SystmOneAutomator getAutomator() {
@@ -47,6 +79,9 @@ public class SystemComponents {
     }
 
     /**
+     * Returns the UI state handler component that manages UI state verification
+     * and stability checking.
+     * 
      * @return The UI state handler component
      */
     public UiStateHandler getUiHandler() {
@@ -54,6 +89,9 @@ public class SystemComponents {
     }
 
     /**
+     * Returns the configured output folder path where processed documents
+     * will be saved.
+     * 
      * @return The output folder path
      */
     public String getOutputFolder() {

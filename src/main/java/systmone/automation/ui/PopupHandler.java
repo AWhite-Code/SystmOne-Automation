@@ -1,145 +1,149 @@
 package systmone.automation.ui;
 
-import java.awt.*;
-import java.awt.event.InputEvent;
-import systmone.automation.state.AutomationState;
+// Java standard imports
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.Robot;
+import java.awt.Dimension;
+import java.awt.Toolkit;
+import java.awt.Point;
+
+// Sikuli imports
+import org.sikuli.script.Region;
+import org.sikuli.script.Key;
+import org.sikuli.script.Match;
+
+// Logging
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// Application imports
+import systmone.automation.core.SystemComponents;
+import systmone.automation.config.ApplicationConfig;
+
 public class PopupHandler {
     private static final Logger logger = LoggerFactory.getLogger(PopupHandler.class);
-    private static final String POPUP_TITLE = "Question";
-    private static final int MAX_RETRY_ATTEMPTS = 3;
     
-    private final Robot robot;
+    private final SystmOneAutomator automator;
     private final UiStateHandler uiStateHandler;
-    private AutomationState currentState;
+    private final Robot robot;
+    private final Region mainWindow;
     
-    public PopupHandler(UiStateHandler uiStateHandler) throws AWTException {
-        this.robot = new Robot();
-        this.uiStateHandler = uiStateHandler;
-    }
+    // Screen center calculation
+    private final int screenCenterX;
+    private final int screenCenterY;
     
-    // Main method to handle popup interruption
-    public boolean handlePopupInterrupt(AutomationState state) {
-        this.currentState = state;
-        Dialog popup = findQuestionPopup();
+    // Region to monitor for popups (centered box)
+    private final Region popupRegion;
+    
+    public PopupHandler(SystemComponents components) {
+        this.automator = components.getAutomator();
+        this.uiStateHandler = components.getUiHandler();
+        this.mainWindow = automator.getWindow();
         
-        if (popup != null) {
-            logger.info("Question popup detected during {}. Handling interrupt...", 
-                state.getCurrentStage());
-            
-            // Create state snapshot before handling popup
-            state.setInterrupted(true);
-            
-            try {
-                // Handle the popup
-                if (handlePopup(popup)) {
-                    // Wait for main window to regain focus
-                    robot.delay(1000);
-                    
-                    // Attempt to restore previous state
-                    return restoreState();
-                }
-            } catch (Exception e) {
-                logger.error("Error handling popup: {}", e.getMessage());
-            }
-        }
-        return false;
-    }
-    
-    private Dialog findQuestionPopup() {
-        Window[] windows = Window.getWindows();
-        for (Window window : windows) {
-            if (window instanceof Dialog && 
-                POPUP_TITLE.equals(((Dialog) window).getTitle())) {
-                return (Dialog) window;
-            }
-        }
-        return null;
-    }
-    
-    private boolean handlePopup(Dialog popup) {
-        // Get popup bounds for clicking
-        Rectangle bounds = popup.getBounds();
-        Point buttonLocation = findOKButton(bounds);
+        // Calculate screen center for popup detection
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        this.screenCenterX = screenSize.width / 2;
+        this.screenCenterY = screenSize.height / 2;
         
-        if (buttonLocation != null) {
-            // Click the OK button
-            robot.mouseMove(buttonLocation.x, buttonLocation.y);
-            robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
-            robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
-            return true;
-        }
-        return false;
-    }
-    
-    private Point findOKButton(Rectangle popupBounds) {
-        // This would use pattern matching to find the OK button
-        // For now, we'll use a simplified approach of looking at the bottom right
-        return new Point(
-            popupBounds.x + popupBounds.width - 70,
-            popupBounds.y + popupBounds.height - 30
+        // Create a region around screen center where popups appear
+        // Adjust these dimensions based on actual popup size
+        this.popupRegion = new Region(
+            screenCenterX - 200,  // Approximate popup width/2
+            screenCenterY - 100,  // Approximate popup height/2
+            400,  // Popup width
+            200   // Popup height
         );
-    }
-    
-    private boolean restoreState() {
-        int attempts = 0;
-        while (attempts < MAX_RETRY_ATTEMPTS) {
-            try {
-                switch (currentState.getCurrentStage()) {
-                    case DOCUMENT_SELECTION:
-                        return restoreDocumentSelection();
-                    case CONTEXT_MENU_OPEN:
-                        return restoreContextMenu();
-                    case PRINT_DIALOG_OPEN:
-                        return restorePrintDialog();
-                    case SAVE_DIALOG_OPEN:
-                        return restoreSaveDialog();
-                    case DOCUMENT_SAVING:
-                        return monitorSaveCompletion();
-                    case NAVIGATION_PENDING:
-                        return prepareForNavigation();
-                }
-            } catch (Exception e) {
-                logger.warn("Restore attempt {} failed: {}", 
-                    attempts + 1, e.getMessage());
-                attempts++;
-                robot.delay(1000);
-            }
+        
+        try {
+            this.robot = new Robot();
+        } catch (Exception e) {
+            logger.error("Failed to initialize Robot for popup detection", e);
+            throw new RuntimeException("Could not initialize popup detection", e);
         }
-        return false;
     }
     
-    // State restoration methods for each stage
-    private boolean restoreDocumentSelection() {
-        // Re-select the current document
-        // Implementation details would depend on your UI interaction methods
-        return true;
+    /**
+     * Checks for popup presence using screen center monitoring
+     */
+    public boolean isPopupPresent() {
+        try {
+            // Take a small sample of pixels in the popup region
+            // We'll look for the popup's background color
+            Color centerColor = robot.getPixelColor(screenCenterX, screenCenterY);
+            
+            // If the color matches expected popup background
+            // (you'll need to determine the actual color)
+            return isPopupColor(centerColor);
+            
+        } catch (Exception e) {
+            logger.warn("Error checking for popup", e);
+            return false;
+        }
     }
     
-    private boolean restoreContextMenu() {
-        // Re-open context menu
-        return true;
+    /**
+     * Handles recovery after a popup is dismissed
+     */
+    public boolean recoverFromPopup() {
+        // First, verify popup is actually gone
+        if (isPopupPresent()) {
+            return false;
+        }
+        
+        try {
+            // 1. Re-verify our document selection
+            Match documentMatch = uiHandler.waitForStableElement(
+                automator.getSelectionBorderPattern(),
+                ApplicationConfig.DIALOG_TIMEOUT
+            );
+            
+            if (documentMatch == null) {
+                logger.error("Could not recover document selection after popup");
+                return false;
+            }
+            
+            // 2. If we were tracking the scrollbar, we need to reset
+            if (uiHandler.isTrackingStarted()) {  // You'll need to add this method
+                if (!uiHandler.startDocumentTracking()) {
+                    logger.warn("Could not restart scrollbar tracking after popup");
+                    // We can continue, just with degraded verification
+                }
+            }
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("Error during popup recovery", e);
+            return false;
+        }
     }
     
-    private boolean restorePrintDialog() {
-        // Re-open print dialog
-        return true;
-    }
-    
-    private boolean restoreSaveDialog() {
-        // Re-open save dialog and set path
-        return true;
-    }
-    
-    private boolean monitorSaveCompletion() {
-        // Check if save completed and handle accordingly
-        return true;
-    }
-    
-    private boolean prepareForNavigation() {
-        // Prepare for navigation to next document
-        return true;
+    /**
+     * Handles a detected popup
+     */
+    public boolean handlePopup() {
+        try {
+            // Since we know it's always in the center, we can try to focus it
+            robot.mouseMove(screenCenterX, screenCenterY);
+            
+            // Try escape key as you mentioned it works
+            mainWindow.type(Key.ESC);
+            
+            // Wait a moment for popup to clear
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+            
+            // Verify popup is gone
+            if (isPopupPresent()) {
+                return false;
+            }
+            
+            // Try to recover our previous state
+            return recoverFromPopup();
+            
+        } catch (Exception e) {
+            logger.error("Error handling popup", e);
+            return false;
+        }
     }
 }

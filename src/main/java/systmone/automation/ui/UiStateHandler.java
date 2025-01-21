@@ -15,6 +15,7 @@ public class UiStateHandler {
     
     private final Region uiRegion;
     private Robot robot;
+    private PopupHandler popupHandler;
     
     // Scrollbar tracking state
     private Rectangle baselineThumbPosition;    // Position at start of document load
@@ -251,6 +252,21 @@ public class UiStateHandler {
             Rectangle lastPosition = null;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
+                // Check for popup before each thumb position check
+                if (popupHandler.isPopupPresent()) {
+                    logger.info("Popup detected during document verification");
+                    if (!popupHandler.handlePopup()) {
+                        logger.error("Failed to handle popup during verification");
+                        return false;
+                    }
+                    // After handling popup, reset our stability counters since the UI state changed
+                    consecutiveMatchCount = 0;
+                    lastPosition = null;
+                    // Give the UI time to stabilize after popup
+                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    continue;
+                }
+    
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
                     logger.error("Could not find current thumb position");
@@ -280,6 +296,18 @@ public class UiStateHandler {
                     
                     // If checked multiple times with no movement, try sending DOWN again
                     if (checkCount > 5 && checkCount % 5 == 0) {  // Every 5 checks after the first 5
+                        // Check for popup before sending additional DOWN command
+                        if (popupHandler.isPopupPresent()) {
+                            logger.info("Popup detected before resending DOWN command");
+                            if (!popupHandler.handlePopup()) {
+                                logger.error("Failed to handle popup before DOWN command");
+                                return false;
+                            }
+                            // Reset check count to give the system a fresh start after popup
+                            checkCount = 0;
+                            continue;
+                        }
+                        
                         logger.warn("No movement detected after {} checks, resending DOWN command", checkCount);
                         uiRegion.type(Key.DOWN);
                         Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);  // Give UI time to process
