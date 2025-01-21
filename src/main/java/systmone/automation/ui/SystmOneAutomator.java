@@ -99,7 +99,7 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Handles the print operation in test mode. This method simulates a save dialog
+     * Handles the print operation in test mode. This method simulates a pop up interaction forcing the save menu to close
      * that can be manually closed to trigger popup handling testing.
      */
     private void handleTestModePrintOperation(Match documentMatch) throws FindFailed {
@@ -172,7 +172,7 @@ public class SystmOneAutomator {
         // Perform save operations with proper keyboard modifiers
         systmOneWindow.type("a", KeyModifier.CTRL);  // Select all existing text
         systmOneWindow.type("v", KeyModifier.CTRL);  // Paste new path
-        systmOneWindow.type(Key.ENTER);              // Confirm save
+        systmOneWindow.type(Key.ENTER);                   // Confirm save
         
         // Wait for save dialog to close
         systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);

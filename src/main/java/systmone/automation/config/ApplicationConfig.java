@@ -58,4 +58,5 @@ public class ApplicationConfig {
     public static final float BUTTON_SIMILARITY_THRESHOLD = 0.9f;
     public static final int POPUP_POSITION_TOLERANCE = 150;  // pixels
     public static final int POPUP_DISMISS_DELAY_MS = 500;   // milliseconds
+    public static final int MAX_POPUP_HANDLES = 3;  // Limit popup retry attempts
 }

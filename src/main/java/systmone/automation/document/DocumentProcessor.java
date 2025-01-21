@@ -240,7 +240,7 @@ public class DocumentProcessor {
         String errorMessage = String.format("Error processing document %d: %s",
             documentNumber, e.getMessage());
         DocumentError error = new DocumentError(documentNumber, errorMessage);
-        stats.addError(error);  // Using the new addError method
+        stats.addError(error);
         logger.error(errorMessage, e);
     }
 

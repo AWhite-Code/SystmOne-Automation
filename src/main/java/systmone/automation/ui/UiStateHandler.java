@@ -256,7 +256,6 @@ public class UiStateHandler {
             int consecutiveMatchCount = 0;
             Rectangle lastPosition = null;
             int popupHandledCount = 0;
-            final int MAX_POPUP_HANDLES = 3;  // Limit popup retry attempts
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 // Check for popup before any UI interaction
@@ -264,7 +263,7 @@ public class UiStateHandler {
                     logger.info("Popup detected during document verification - attempt {}", 
                         popupHandledCount + 1);
                     
-                    if (popupHandledCount >= MAX_POPUP_HANDLES) {
+                    if (popupHandledCount >= ApplicationConfig.MAX_POPUP_HANDLES) {
                         logger.error("Exceeded maximum popup handling attempts");
                         return false;
                     }
@@ -272,16 +271,14 @@ public class UiStateHandler {
                     // Dismiss popup with Enter key (assuming "Yes" is the safe default)
                     popupHandler.dismissPopup(true);
                     popupHandledCount++;
-                    
-                    // After handling popup, we need to:
-                    // 1. Reset our consecutive match counting
+                
                     consecutiveMatchCount = 0;
                     lastPosition = null;
                     
-                    // 2. Give the UI time to stabilize
+                    // Give the UI time to stabilize
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     
-                    // 3. Verify our document selection is still valid
+                    // Verify our document selection is still valid
                     Match documentBorder = mainWindow.exists(selectionBorderPattern);
                     if (documentBorder == null) {
                         logger.warn("Lost document selection after popup - retrying DOWN key");
@@ -289,14 +286,13 @@ public class UiStateHandler {
                         Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     }
                     
-                    // 4. Reset our timeout to give full time for verification
+                    // Reset timeout to give full time for verification
                     startTime = System.currentTimeMillis();
                     continue;
                 }
 
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    // Could be null because of popup - verify
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected after failed thumb detection");
                         continue;  // Go back to start of loop to handle popup

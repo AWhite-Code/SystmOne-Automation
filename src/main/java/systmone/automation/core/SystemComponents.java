@@ -33,7 +33,6 @@ public class SystemComponents {
      * @throws IllegalArgumentException if any parameter is null
      */
     public SystemComponents(SystmOneAutomator automator, String outputFolder) {
-        // Validation
         if (automator == null) {
             throw new IllegalArgumentException("Automator cannot be null");
         }
@@ -62,8 +61,8 @@ public class SystemComponents {
 
     private UiStateHandler createUiStateHandler(Region mainWindow, PopupHandler popupHandler) {
         return new UiStateHandler(
-            mainWindow,                    // UI Region
-            mainWindow,                    // Main window for popup handling
+            mainWindow,                             // UI Region
+            mainWindow,                             // Main window for popup handling
             automator.getSelectionBorderPattern(),  // Pattern for document selection
             popupHandler
         );
@@ -72,7 +71,7 @@ public class SystemComponents {
     /**
      * Returns the PopupHandler component responsible for detecting and managing
      * system popups during automation.
-     * 
+
      * @return The popup handler component
      */
     public PopupHandler getPopupHandler() {
