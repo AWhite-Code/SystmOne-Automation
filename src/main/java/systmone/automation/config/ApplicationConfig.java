@@ -51,4 +51,10 @@ public class ApplicationConfig {
     public static final int SEARCH_RANGE_BELOW = 300;      // Pixels to search below selection
     public static final int MIN_THUMB_MOVEMENT = 2;        // Minimum pixels to consider real movement
     public static final int MAX_NO_MOVEMENT_COUNT = 10;    // Maximum checks before assuming no movemen
+
+    // Popup detection settings
+    public static final float POPUP_SIMILARITY_THRESHOLD = 0.9f;
+    public static final float BUTTON_SIMILARITY_THRESHOLD = 0.9f;
+    public static final int POPUP_POSITION_TOLERANCE = 50;  // pixels
+    public static final int POPUP_DISMISS_DELAY_MS = 500;   // milliseconds
 }
