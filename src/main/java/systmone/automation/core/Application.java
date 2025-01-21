@@ -3,6 +3,7 @@ package systmone.automation.core;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import systmone.automation.config.ApplicationConfig;
 import systmone.automation.document.DocumentProcessor;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.state.ProcessingStats;
@@ -18,46 +19,52 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Application {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
     private static final AtomicBoolean killSwitch = new AtomicBoolean(false);
+public static void main(String[] args) {
+    logger.info("Starting SystmOne Document Processing Application");
+    ProcessingStats stats = null;
 
-    public static void main(String[] args) {
-        logger.info("Starting SystmOne Document Processing Application");
-        ProcessingStats stats = null;
+    try {
+        // Initialize the system using our new initializer
+        SystemInitialiser initialiser = new SystemInitialiser();
+        InitialisationResult initResult = initialiser.initialise();
 
-        try {
-            // Initialize the system using our new initializer
-            SystemInitialiser initialiser = new SystemInitialiser();
-            InitialisationResult initResult = initialiser.initialise();
+        if (!initResult.isSuccess()) {
+            logger.error("System initialization failed: {}", initResult.getErrorMessage());
+            return;
+        }
 
-            if (!initResult.isSuccess()) {
-                logger.error("System initialization failed: {}", initResult.getErrorMessage());
-                return;
-            }
-
-            // Set up monitoring for graceful shutdown
+        // Set up monitoring for graceful shutdown - only in production mode
+        if (!ApplicationConfig.TEST_MODE) {
             setupKillSwitch();
+        }
 
-            // Create document processor with initialized components
-            SystemComponents components = initResult.getComponents();
-            DocumentProcessor processor = new DocumentProcessor(
-                components.getAutomator(),
-                components.getUiHandler(),
-                components.getOutputFolder(),
-                killSwitch
-            );
+        // Create document processor with initialized components
+        SystemComponents components = initResult.getComponents();
+        DocumentProcessor processor = new DocumentProcessor(
+            components.getAutomator(),
+            components.getUiHandler(),
+            components.getOutputFolder(),
+            killSwitch
+        );
 
-            // Process all documents
-            logger.info("Beginning document processing");
+        // Process based on mode
+        if (ApplicationConfig.TEST_MODE) {
+            logger.info("Running in test mode - popup handling test only");
+            processor.runTestOperations();
+        } else {
+            logger.info("Running in production mode - full document processing");
             stats = processor.processDocuments();
+        }
 
-        } catch (Exception e) {
-            logger.error("Critical application failure: {}", e.getMessage(), e);
-        } finally {
-            // Generate processing summary even if an error occurred
-            if (stats != null) {
-                logger.info("Generating processing summary");
-                SummaryGenerator.generateProcessingSummary(stats);
-            }
-            logger.info("Application shutdown complete");
+    } catch (Exception e) {
+        logger.error("Critical application failure: {}", e.getMessage(), e);
+    } finally {
+        // Only generate summary in production mode
+        if (!ApplicationConfig.TEST_MODE && stats != null) {
+            logger.info("Generating processing summary");
+            SummaryGenerator.generateProcessingSummary(stats);
+        }
+        logger.info("Application shutdown complete");
         }
     }
 

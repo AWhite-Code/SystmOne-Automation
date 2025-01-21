@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class SystmOneAutomator {
     private static final Logger logger = LoggerFactory.getLogger(SystmOneAutomator.class);
-    
     private final App systmOne;
     private final Region systmOneWindow;
     private final ApplicationConfig.Location location;
@@ -92,69 +91,91 @@ public class SystmOneAutomator {
     }
 
     public void printDocument(Match documentMatch, String savePath) throws FindFailed {
-        PopupHandler popupHandler = new PopupHandler(systmOneWindow);
+        if (ApplicationConfig.TEST_MODE) {
+            handleTestModePrintOperation(documentMatch);
+        } else {
+            handleProductionPrintOperation(documentMatch, savePath);
+        }
+    }
+
+    /**
+     * Handles the print operation in test mode. This method simulates a save dialog
+     * that can be manually closed to trigger popup handling testing.
+     */
+    private void handleTestModePrintOperation(Match documentMatch) throws FindFailed {
+        logger.info("TEST MODE: Starting simulated print operation");
         
-        // Right-click to open context menu
+        // Open print dialog
         documentMatch.rightClick();
-        
-        // Wait for print menu item, handling any popups
-        Match printMenuItem = null;
-        long startTime = System.currentTimeMillis();
-        
-        while (System.currentTimeMillis() - startTime < ApplicationConfig.DIALOG_TIMEOUT * 1000) {
-            // Check for and handle popups before looking for menu
-            if (popupHandler.isPopupPresent()) {
-                logger.info("Handling popup during print menu operation");
-                popupHandler.dismissPopup(false);  // Use ESC to dismiss
-                // Re-attempt right-click as menu may have closed
-                documentMatch.rightClick();
-            }
-    
-            printMenuItem = systmOneWindow.exists(printMenuItemPattern);
-            if (printMenuItem != null) break;
-            
-            try {
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new FindFailed("Print operation interrupted");
-            }
-        }
-        
-        if (printMenuItem == null) {
-            throw new FindFailed("Print menu item not found after popup handling");
-        }
-        
-        // Click print menu item
+        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
+            ApplicationConfig.MENU_TIMEOUT);
         printMenuItem.click();
         
-        // Wait for and handle save dialog
-        Match saveDialog = systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+        // Wait for and verify save dialog
+        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
-        // Handle path copying and save operation
-        systmOneWindow.type("a", KeyModifier.CTRL);
-        systmOneWindow.type("v", KeyModifier.CTRL);
-        systmOneWindow.type(Key.ENTER);
+        // Provide test instructions
+        logger.info("TEST MODE: Save dialog open - you can now:");
+        logger.info("1. Manually close the save dialog");
+        logger.info("2. Wait for 'retry' popup");
+        logger.info("3. Watch the automation handle the retry");
         
-        // Wait for save dialog to close, handling any popups
-        long saveStartTime = System.currentTimeMillis();
-        while (!systmOneWindow.waitVanish(saveDialogPattern, 1)) {  // Short timeout for quick checks
-            if (System.currentTimeMillis() - saveStartTime > ApplicationConfig.DIALOG_TIMEOUT * 1000) {
-                throw new FindFailed("Save dialog did not close within timeout");
+        try {
+            // Wait for manual interaction with reasonable timeout
+            long startTime = System.currentTimeMillis();
+            long timeout = 30000; // 30 seconds for testing
+            boolean dialogClosed = false;
+            
+            // Monitor save dialog until it's closed or times out
+            while (System.currentTimeMillis() - startTime < timeout) {
+                if (systmOneWindow.exists(saveDialogPattern) == null) {
+                    dialogClosed = true;
+                    break;
+                }
+                Thread.sleep(500);
             }
             
-            if (popupHandler.isPopupPresent()) {
-                logger.info("Handling popup during save operation");
-                popupHandler.dismissPopup(false);
+            // Handle timeout case
+            if (!dialogClosed) {
+                logger.warn("TEST MODE: Timed out waiting for manual dialog close");
+                throw new FindFailed("Test mode timeout - save dialog not closed");
             }
             
-            try {
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new FindFailed("Save operation interrupted");
-            }
+            // Allow time for retry popup to appear
+            Thread.sleep(1000);
+            
+            // Trigger popup handling
+            throw new FindFailed("TEST MODE: Triggering retry popup handler");
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FindFailed("Test mode interrupted");
         }
+    }
+
+    /**
+     * Handles the print operation in production mode. This method performs the actual
+     * save operation with clipboard operations and keyboard input.
+     */
+    private void handleProductionPrintOperation(Match documentMatch, String savePath) throws FindFailed {
+        // Start print operation
+        documentMatch.rightClick();
+        
+        // Wait for and click print menu item
+        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
+            ApplicationConfig.MENU_TIMEOUT);
+        printMenuItem.click();
+        
+        // Wait for save dialog
+        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+        
+        // Perform save operations with proper keyboard modifiers
+        systmOneWindow.type("a", KeyModifier.CTRL);  // Select all existing text
+        systmOneWindow.type("v", KeyModifier.CTRL);  // Paste new path
+        systmOneWindow.type(Key.ENTER);              // Confirm save
+        
+        // Wait for save dialog to close
+        systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
         logger.info("Saved document to: {}", savePath);
     }
@@ -169,7 +190,7 @@ public class SystmOneAutomator {
     
     // Getters
 
-    
+
     public PopupHandler getPopupHandler() {
         return popupHandler;
     }

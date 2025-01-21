@@ -29,14 +29,8 @@ public class PopupHandler {
      */
     public PopupHandler(Region mainWindow) {
         this.mainWindow = mainWindow;
-        
-        // Initialize patterns with appropriate similarity thresholds
         this.questionPopupPattern = new Pattern("question_popup_title.png")
             .similar(ApplicationConfig.POPUP_SIMILARITY_THRESHOLD);
-            
-        this.wasPopupHandled = false;
-        this.lastPopupTime = 0;
-        this.popupCount = 0;
     }
     
     /**
@@ -49,19 +43,25 @@ public class PopupHandler {
         try {
             Match popupMatch = mainWindow.exists(questionPopupPattern);
             if (popupMatch != null) {
-                // Verify popup is in expected screen position
-                if (isPopupPositionValid(popupMatch)) {
-                    // Track popup occurrence
-                    lastPopupTime = System.currentTimeMillis();
-                    popupCount++;
-                    logger.info("Detected popup #{} at ({}, {})", 
-                        popupCount, popupMatch.x, popupMatch.y);
+                // Since we know the popup appears at (707, 434), let's use that
+                // to calculate a reasonable range for popup positions
+                boolean isInValidRange = 
+                    popupMatch.x >= mainWindow.x + 500 &&      // Not too far left
+                    popupMatch.x <= mainWindow.x + 900 &&      // Not too far right
+                    popupMatch.y >= mainWindow.y + 300 &&      // Not too high
+                    popupMatch.y <= mainWindow.y + 500;        // Not too low
+                
+                if (isInValidRange) {
+                    logger.debug("Popup detected at valid position ({}, {})", 
+                        popupMatch.x, popupMatch.y);
                     return true;
+                } else {
+                    logger.warn("Found popup title but position invalid: ({}, {})", 
+                        popupMatch.x, popupMatch.y);
                 }
-                logger.warn("Found popup title but position invalid: ({}, {})",
-                    popupMatch.x, popupMatch.y);
             }
             return false;
+            
         } catch (Exception e) {
             logger.error("Error checking for popup presence", e);
             return false;
@@ -137,14 +137,35 @@ public class PopupHandler {
      * SystmOne popups are always centered in the main window.
      */
     private boolean isPopupPositionValid(Match popupMatch) {
-        // Calculate expected center position
-        int expectedX = mainWindow.x + (mainWindow.w / 2);
-        int expectedY = mainWindow.y + (mainWindow.h / 2);
+        // Get window dimensions
+        int windowCenterX = mainWindow.x + (mainWindow.w / 2);
+        int windowCenterY = mainWindow.y + (mainWindow.h / 2);
         
-        // Allow for some position variance
-        int tolerance = ApplicationConfig.POPUP_POSITION_TOLERANCE;
+        // Calculate popup center (assuming popup title is near the top of the popup)
+        int popupCenterX = popupMatch.x + (popupMatch.w / 2);
         
-        return Math.abs(popupMatch.x - expectedX) <= tolerance &&
-               Math.abs(popupMatch.y - expectedY) <= tolerance;
+        // For Y position, we need to be more flexible since the title is at the top
+        // The popup Y coordinate will be above the window center
+        
+        // Allow for more generous position tolerance
+        int tolerance = ApplicationConfig.POPUP_POSITION_TOLERANCE;  // Maybe 150 pixels
+        
+        // Log the position calculations for debugging
+        logger.debug("Window center: ({}, {})", windowCenterX, windowCenterY);
+        logger.debug("Popup position: ({}, {})", popupMatch.x, popupMatch.y);
+        logger.debug("Popup center X: {}", popupCenterX);
+        
+        // Check if popup is roughly centered horizontally and in the upper half of the window
+        boolean isValid = Math.abs(popupCenterX - windowCenterX) <= tolerance &&
+                         popupMatch.y > mainWindow.y &&  // Must be below top of window
+                         popupMatch.y < windowCenterY;   // Must be above vertical center
+        
+        if (!isValid) {
+            logger.debug("Position validation failed: X-offset={}, Y-position={}",
+                Math.abs(popupCenterX - windowCenterX),
+                popupMatch.y - mainWindow.y);
+        }
+        
+        return isValid;
     }
 }

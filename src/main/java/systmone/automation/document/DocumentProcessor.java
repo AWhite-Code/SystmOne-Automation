@@ -31,20 +31,38 @@ public class DocumentProcessor {
     private final AtomicBoolean killSwitch;
     private final ProcessingStats stats;
 
+    /**
+     * Main constructor for production use. Automatically sets testMode to false.
+     */
     public DocumentProcessor(
             SystmOneAutomator automator,
             UiStateHandler uiHandler,
             String outputFolder,
             AtomicBoolean killSwitch) {
+        this(automator, uiHandler, outputFolder, killSwitch, ApplicationConfig.TEST_MODE);
+    }
+
+    /**
+     * Extended constructor that allows explicit control of test mode.
+     * This is used internally and for testing purposes.
+     */
+    public DocumentProcessor(
+            SystmOneAutomator automator,
+            UiStateHandler uiHandler,
+            String outputFolder,
+            AtomicBoolean killSwitch,
+            boolean testMode) {
         this.automator = automator;
         this.uiHandler = uiHandler;
         this.outputFolder = outputFolder;
         this.killSwitch = killSwitch;
         this.stats = new ProcessingStats();
         
-        // Initialize scrollbar tracking if possible
-        if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
-            logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+        // Only initialize scrollbar tracking in production mode
+        if (!testMode) {
+            if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
+                logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+            }
         }
     }
 
@@ -130,56 +148,49 @@ public class DocumentProcessor {
     }
 
     /**
-     * Handles the actual saving of the document to disk.
-     * Coordinates clipboard operations and UI interactions for saving.
+     * Primary method for processing a document save operation.
+     * Handles both production and test scenarios.
      */
     private void saveDocument(Match documentMatch, String documentPath) 
-    throws FindFailed, InterruptedException {
-        PopupHandler popupHandler = automator.getPopupHandler();
-        boolean saveCompleted = false;
+            throws FindFailed, InterruptedException {
         int attempts = 0;
         final int MAX_SAVE_ATTEMPTS = 3;
-
-        while (!saveCompleted && attempts < MAX_SAVE_ATTEMPTS) {
+        
+        while (attempts < MAX_SAVE_ATTEMPTS) {
             attempts++;
-            logger.info("Starting save attempt {} of {}", attempts, MAX_SAVE_ATTEMPTS);
+            logger.info("Save attempt {} of {}", attempts, MAX_SAVE_ATTEMPTS);
 
             try {
-                // Ensure clipboard has the correct path
+                // Ensure clipboard has the path
                 if (!ClipboardHelper.setClipboardContent(documentPath)) {
-                    throw new RuntimeException("Failed to copy document path to clipboard");
+                    throw new RuntimeException("Failed to copy path to clipboard");
                 }
 
-                // Start print operation
+                // Start the print/save operation
                 automator.printDocument(documentMatch, documentPath);
-                saveCompleted = true;
+                return;  // Success!
 
             } catch (FindFailed e) {
-                // Wait a moment for any popup to fully appear
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                PopupHandler popupHandler = automator.getPopupHandler();
                 
-                // Look for the retry popup
                 if (popupHandler.isPopupPresent()) {
-                    logger.info("Print retry popup detected - accepting retry");
+                    logger.info("Popup detected during save - handling retry dialog");
                     
-                    // Press Enter to accept retry (since Yes is pre-selected)
+                    // Send Enter to accept retry
                     automator.getWindow().type(Key.ENTER);
-                    
-                    // Give the system time to bring up the new save dialog
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                    continue;  // Start fresh with the new save dialog
-                } else {
-                    // If no retry popup found, this is an unexpected error
-                    logger.error("Save failed without retry option: {}", e.getMessage());
-                    throw e;
+                    
+                    // Continue to next attempt
+                    continue;
                 }
+                
+                // If no popup found, this is an unexpected error
+                throw e;
             }
         }
-
-if (!saveCompleted) {
-    throw new FindFailed("Failed to save document after " + MAX_SAVE_ATTEMPTS + " attempts");
-}
-}
+        
+        throw new FindFailed("Save operation failed after " + MAX_SAVE_ATTEMPTS + " attempts");
+    }
 
     /**
      * Manages navigation between documents, using either basic or scrollbar verification
@@ -232,5 +243,27 @@ if (!saveCompleted) {
         DocumentError error = new DocumentError(documentNumber, errorMessage);
         stats.addError(error);  // Using the new addError method
         logger.error(errorMessage, e);
+    }
+
+    /**
+     * Test method for verifying popup handling functionality.
+     * Only runs in test mode.
+     */
+    public void runTestOperations() throws FindFailed, InterruptedException {
+        logger.info("TEST MODE: Starting popup handling verification");
+        
+        Match documentMatch = uiHandler.waitForStableElement(
+            automator.getSelectionBorderPattern(),
+            ApplicationConfig.DIALOG_TIMEOUT
+        );
+
+        if (documentMatch == null) {
+            logger.error("TEST MODE: No document found for testing");
+            return;
+        }
+
+        // Use actual save method with test path
+        String testPath = buildDocumentPath(1);
+        saveDocument(documentMatch, testPath);
     }
 }

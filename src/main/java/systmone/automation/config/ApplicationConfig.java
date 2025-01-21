@@ -8,6 +8,7 @@ public class ApplicationConfig {
     public static final String APP_TITLE = "SystmOne GP:";
     public static final String IMAGE_DIR_PATH = "src/main/resources/images";
     public static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output";
+    public static final boolean TEST_MODE = false; // Dev Flag for testing
     
     // Date formatting
     public static final DateTimeFormatter FOLDER_DATE_FORMAT = 
@@ -55,6 +56,6 @@ public class ApplicationConfig {
     // Popup detection settings
     public static final float POPUP_SIMILARITY_THRESHOLD = 0.9f;
     public static final float BUTTON_SIMILARITY_THRESHOLD = 0.9f;
-    public static final int POPUP_POSITION_TOLERANCE = 50;  // pixels
+    public static final int POPUP_POSITION_TOLERANCE = 150;  // pixels
     public static final int POPUP_DISMISS_DELAY_MS = 500;   // milliseconds
 }
