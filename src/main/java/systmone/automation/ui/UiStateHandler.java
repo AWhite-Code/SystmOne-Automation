@@ -187,89 +187,56 @@ public class UiStateHandler {
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
-            final int MIN_THUMB_HEIGHT = 15;
-            final int ARROW_SKIP = 25;
-            final int SCAN_WINDOW = 200;
-            final int LOOK_ABOVE = 20;
-            
-        // Calculate capture region
-        int captureStartY = searchRegion.y + ARROW_SKIP;
-        if (baselineThumbPosition != null) {
-            // Look relative to last known position
-            captureStartY = Math.max(
-                searchRegion.y + ARROW_SKIP,
-                baselineThumbPosition.y - LOOK_ABOVE
-            );
-        }
-    
-            // Add logging for capture dimensions
-            logger.debug("Capturing region: x={}, y={}, width={}, height={}", 
-                searchRegion.x, captureStartY, searchRegion.w, SCAN_WINDOW);
-            
+            // Take one screenshot of the entire region
             BufferedImage screenshot = robot.createScreenCapture(new Rectangle(
                 searchRegion.x,
-                captureStartY,
+                searchRegion.y,
                 searchRegion.w,
-                SCAN_WINDOW
+                searchRegion.h
             ));
     
-            // Color detection logging
+            // Single pass scan for the thumb
             int centerX = screenshot.getWidth() / 2;
             int currentRun = 0;
             int longestRun = 0;
-            int longestStart = -1;
+            int bestStart = -1;
             int runStart = -1;
-            int colorMatches = 0;  // Track how many pixels match scrollbar color
-            
+    
             for (int y = 0; y < screenshot.getHeight(); y++) {
                 Color pixelColor = new Color(screenshot.getRGB(centerX, y));
                 
                 if (isScrollbarColor(pixelColor)) {
-                    colorMatches++;
                     if (currentRun == 0) {
                         runStart = y;
-                        logger.trace("Started new color run at y={}", y);
                     }
                     currentRun++;
                     
+                    // Update best match as we go
                     if (currentRun > longestRun) {
                         longestRun = currentRun;
-                        longestStart = runStart;
-                        logger.trace("New longest run: length={}, start_y={}", longestRun, longestStart);
+                        bestStart = runStart;
                     }
                 } else {
-                    if (currentRun > 0) {
-                        logger.trace("Ended color run: length={}, at y={}", currentRun, y);
-                    }
                     currentRun = 0;
-                    runStart = -1;
                 }
             }
-            
-            logger.debug("Color analysis complete - found {} matching pixels, longest run={} starting at y={}", 
-                colorMatches, longestRun, longestStart);
     
-                if (longestRun >= MIN_THUMB_HEIGHT) {
-                    // Here's the key change - we need to return absolute screen coordinates
-                    Rectangle thumbBounds = new Rectangle(
-                        searchRegion.x,
-                        captureStartY + longestStart,  // This gives us the actual screen Y coordinate
-                        searchRegion.w,
-                        longestRun
-                    );
-                    
-                    logger.debug("Found thumb - relative_start={}, absolute_y={}, height={}", 
-                        longestStart, thumbBounds.y, longestRun);
-                        
-                    return thumbBounds;
-                }
-                
-                return null;
-            } catch (Exception e) {
-                logger.error("Error finding scrollbar thumb: {}", e.getMessage());
-                return null;
+            // If we found a valid thumb (using minimum height check)
+            if (longestRun >= 15) { // Minimum thumb height
+                return new Rectangle(
+                    searchRegion.x,
+                    searchRegion.y + bestStart,
+                    searchRegion.w,
+                    longestRun
+                );
             }
+    
+            return null;
+        } catch (Exception e) {
+            logger.error("Error finding scrollbar thumb: {}", e.getMessage());
+            return null;
         }
+    }
     
     // Helper method for debug screenshots
     private void saveDebugScreenshot(BufferedImage screenshot, int x, int y) {
@@ -290,121 +257,68 @@ public class UiStateHandler {
     */
     public boolean verifyDocumentLoaded(double timeout) {
         if (!isTrackingStarted) {
-            logger.error("Document tracking not started - missing initialization");
+            logger.error("Document tracking not started");
             return false;
         }
     
         try {
-            // Initial delay to let the UI catch up after navigation command
-            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS*2);
+            // Initial delay after navigation - this is crucial!
+            // We need to give time for:
+            // 1. Save dialog to fully close
+            // 2. UI to update with new document
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS * 2);
             
-            // Initialize our tracking variables
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
-            int checkCount = 0;
             int consecutiveMatchCount = 0;
             Rectangle lastPosition = null;
-            int popupHandledCount = 0;
-            
-            // Store our starting position for comparison
             Rectangle initialBaseline = baselineThumbPosition;
-            logger.info("Starting verification with initial baseline at y={}", initialBaseline.y);
             
-            // Main verification loop
             while (System.currentTimeMillis() - startTime < timeoutMs) {
-                long elapsedMs = System.currentTimeMillis() - startTime;
-                logger.debug("Verification check #{} - elapsed={}ms, timeout={}ms", 
-                    checkCount + 1, elapsedMs, timeoutMs);
-    
-                // Handle any popups before proceeding
-                if (popupHandler.isPopupPresent()) {
-                    logger.info("Popup detected during verification - attempt {}", 
-                        popupHandledCount + 1);
-                    
-                    if (popupHandledCount >= ApplicationConfig.MAX_POPUP_HANDLES) {
-                        logger.error("Exceeded maximum popup handling attempts");
-                        return false;
-                    }
-                    
+                // Quick popup check only when needed
+                if (consecutiveMatchCount == 0 && popupHandler.isPopupPresent()) {
                     popupHandler.dismissPopup(true);
-                    popupHandledCount++;
-                    consecutiveMatchCount = 0;
-                    lastPosition = null;
-                    
+                    // After dismissing popup, give UI time to stabilize
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                    
-                    // Recheck document selection
-                    if (mainWindow.exists(selectionBorderPattern) == null) {
-                        logger.warn("Lost document selection after popup - retrying DOWN key");
-                        mainWindow.type(Key.DOWN);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                    }
-                    
-                    startTime = System.currentTimeMillis();  // Reset timeout
                     continue;
                 }
     
-                // Try to find current thumb position
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    logger.warn("Failed to find thumb on check #{}", checkCount + 1);
-                    if (popupHandler.isPopupPresent()) {
-                        continue;
-                    }
-                    return false;
+                    // If we can't find the thumb, wait a moment before retrying
+                    // This helps if the UI is still updating
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                    continue;
                 }
     
-                // Calculate and log movement
                 int movement = newPosition.y - initialBaseline.y;
-                checkCount++;
-                
-                logger.info("Position check #{} - baseline={}, current={}, movement={}, consecutive_matches={}", 
-                    checkCount, initialBaseline.y, newPosition.y, movement, consecutiveMatchCount);
-    
                 if (movement > 0) {
-                    logger.debug("Detected downward movement of {} pixels", movement);
                     if (lastPosition != null && lastPosition.y == newPosition.y) {
                         consecutiveMatchCount++;
-                        logger.debug("Position matched previous - consecutive_matches={}", 
-                            consecutiveMatchCount);
-                        
                         if (consecutiveMatchCount >= 2) {
-                            logger.info("Verification successful - movement={}, final_y={}", 
-                                movement, newPosition.y);
+                            // Success! But wait a moment before proceeding
+                            // This ensures the document is fully loaded
+                            Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                             isTrackingStarted = false;
                             return true;
                         }
                     } else {
-                        logger.debug("New position differs from last - resetting consecutive matches");
                         consecutiveMatchCount = 1;
                     }
-                    
                     lastPosition = newPosition;
+                    
+                    // Small delay between position checks to let UI settle
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS / 2);
                 } else {
-                    if (lastPosition == null) {
-                        logger.debug("No movement detected (movement={}, needed >0)", movement);
-                        consecutiveMatchCount = 0;
-                        
-                        if (checkCount > 5 && checkCount % 5 == 0) {
-                            if (!popupHandler.isPopupPresent()) {
-                                logger.warn("Retrying navigation after {} failed checks", checkCount);
-                                mainWindow.type(Key.DOWN);
-                                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                            }
-                        }
-                    }
+                    // If no movement detected, give the system a bit more time
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                 }
-    
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
             }
     
-            logger.error("Verification timed out after {} checks - last consecutive matches: {}", 
-                checkCount, consecutiveMatchCount);
             return false;
     
         } catch (Exception e) {
-            logger.error("Verification error: {} at {}", 
-                e.getMessage(), e.getStackTrace()[0]);
+            logger.error("Verification error: {}", e.getMessage());
             return false;
         }
     }
