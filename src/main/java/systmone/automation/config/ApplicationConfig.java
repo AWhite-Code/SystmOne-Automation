@@ -22,7 +22,7 @@ public class ApplicationConfig {
     
     // Timing configurations
     public static final int FOCUS_DELAY_MS = 1000;
-    public static final int NAVIGATION_DELAY_MS = 250;
+    public static final int NAVIGATION_DELAY_MS = 100;
     public static final int CONTEXT_MENU_DELAY_MS = 500;
     public static final int PRINT_DIALOG_DELAY_MS = 2000;
     public static final int SAVE_DIALOG_DELAY_MS = 3000;
@@ -35,9 +35,8 @@ public class ApplicationConfig {
     public static final double LOCATION_SIMILARITY = 0.7;
     
     // UI State Handler configurations
-    public static final int REQUIRED_STABILITY_COUNT = 3;
-    public static final int POLL_INTERVAL_MS = 100;
-    public static final int MOVEMENT_GRACE_PERIOD_MS = 500;
+    public static final int REQUIRED_STABILITY_COUNT = 2;
+    public static final int POLL_INTERVAL_MS = 50;
     public static final int MIN_DOCUMENTS_FOR_SCROLLBAR = 2;
     
     // Scrollbar detection settings
@@ -50,7 +49,7 @@ public class ApplicationConfig {
     public static final int SCROLLBAR_OFFSET_X = 947;      // X offset from selection to scrollbar
     public static final int SEARCH_RANGE_ABOVE = 100;      // Pixels to search above selection
     public static final int SEARCH_RANGE_BELOW = 300;      // Pixels to search below selection
-    public static final int MIN_THUMB_MOVEMENT = 2;        // Minimum pixels to consider real movement
+    public static final int MIN_THUMB_MOVEMENT = 3;        // Minimum pixels to consider real movement
     public static final int MAX_NO_MOVEMENT_COUNT = 10;    // Maximum checks before assuming no movemen
 
     // Popup detection settings

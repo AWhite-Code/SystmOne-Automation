@@ -168,68 +168,83 @@ public class UiStateHandler {
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
+            // Define a minimum height for what we consider a valid thumb
+            final int MIN_THUMB_HEIGHT = 15;  // Thumb should be significantly taller than arrow buttons
+            
+            // Skip the top portion where the up arrow lives
+            final int ARROW_SKIP = 25;  // Skip past the up arrow area
+            
+            int startY = baselineThumbPosition != null ? 
+                Math.max(ARROW_SKIP, baselineThumbPosition.y - 5) : ARROW_SKIP;
+                
+            logger.debug("Search region bounds: y={} to {}, starting at y={} to skip arrow", 
+                searchRegion.y, searchRegion.y + searchRegion.h, startY);
+                
+            // Calculate the relative position within our screenshot
+            int screenshotStartY = Math.max(0, startY - searchRegion.y);
+            
             BufferedImage screenshot = robot.createScreenCapture(new Rectangle(
                 searchRegion.x,
-                searchRegion.y,
+                searchRegion.y + screenshotStartY,
                 searchRegion.w,
-                searchRegion.h
+                searchRegion.h - screenshotStartY
             ));
     
             int centerX = screenshot.getWidth() / 2;
-            
-            // Track both the raw image position and best match position
-            int bestMatchStart = -1;
-            int bestMatchEnd = -1;
-            int longestRun = 0;
+            int thumbStart = -1;
+            int thumbEnd = -1;
             int currentRun = 0;
-            int runStart = -1;
+            int longestRun = 0;
+            int longestStart = -1;
+            int longestEnd = -1;
             
-            // Scan for the longest continuous run of scrollbar color
+            // Look for the longest continuous run of scrollbar color
             for (int y = 0; y < screenshot.getHeight(); y++) {
                 Color pixelColor = new Color(screenshot.getRGB(centerX, y));
                 
                 if (isScrollbarColor(pixelColor)) {
                     if (currentRun == 0) {
-                        runStart = y;
+                        thumbStart = y;
                     }
                     currentRun++;
                 } else {
+                    // End of a run - check if it's our longest
                     if (currentRun > longestRun) {
                         longestRun = currentRun;
-                        bestMatchStart = runStart;
-                        bestMatchEnd = y - 1;
+                        longestStart = thumbStart;
+                        longestEnd = y - 1;
                     }
                     currentRun = 0;
+                    thumbStart = -1;
                 }
             }
             
             // Check final run
             if (currentRun > longestRun) {
-                bestMatchStart = runStart;
-                bestMatchEnd = screenshot.getHeight() - 1;
+                longestRun = currentRun;
+                longestStart = thumbStart;
+                longestEnd = screenshot.getHeight() - 1;
             }
             
-            // If thumb found (minimum 3 pixels high, this may cause issues later)
-            if (bestMatchStart != -1 && (bestMatchEnd - bestMatchStart) >= 2) {
-                
+            // Only consider runs that are tall enough to be the thumb
+            if (longestRun >= MIN_THUMB_HEIGHT) {
                 // Calculate absolute screen coordinates
-                int screenY = searchRegion.y + bestMatchStart;
-                int height = bestMatchEnd - bestMatchStart + 1;
+                int screenY = searchRegion.y + screenshotStartY + longestStart;
                 
                 Rectangle thumbBounds = new Rectangle(
                     searchRegion.x,
                     screenY,
                     searchRegion.w,
-                    height
+                    longestRun
                 );
                 
-                logger.info("Found thumb: image coordinates y={}->{}), screen coordinates y={}->{}",
-                    bestMatchStart, bestMatchEnd,
-                    screenY, screenY + height);
+                logger.info("Found thumb: height={}, absolute screen y={}->{}",
+                    longestRun, screenY, screenY + longestRun);
                     
                 return thumbBounds;
             }
             
+            logger.warn("No valid thumb found (minimum height: {})", MIN_THUMB_HEIGHT);
             return null;
             
         } catch (Exception e) {
@@ -237,7 +252,7 @@ public class UiStateHandler {
             return null;
         }
     }
-    
+
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
     */
@@ -357,14 +372,29 @@ public class UiStateHandler {
     }
     
     private boolean isScrollbarColor(Color color) {
-        return isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
-               isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
-               isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED);
+        boolean isMatch = isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
+                        isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
+                        isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED);
+        
+        if (isMatch) {
+            logger.trace("Color match found: RGB({},{},{})", 
+                color.getRed(), color.getGreen(), color.getBlue());
+        }
+        
+        return isMatch;
     }
-    
+
     private boolean isMatchingColor(Color c1, Color target) {
-        return Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
-               Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
-               Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
+        boolean matches = Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
+                        Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
+                        Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
+        
+        if (matches) {
+            logger.trace("Color match: Source RGB({},{},{}) matches target RGB({},{},{})", 
+                c1.getRed(), c1.getGreen(), c1.getBlue(),
+                target.getRed(), target.getGreen(), target.getBlue());
+        }
+        
+        return matches;
     }
 }
