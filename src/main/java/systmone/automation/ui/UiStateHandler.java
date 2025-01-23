@@ -9,6 +9,7 @@ import java.awt.Robot;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.File;
+import java.awt.Graphics2D;
 
 import javax.imageio.ImageIO;
 
@@ -139,9 +140,9 @@ public class UiStateHandler {
     
             // Constants for scrollbar dimensions and positioning
             final int SCROLLBAR_WIDTH = 18;        // Standard Windows scrollbar width
-            final int SCROLLBAR_HEIGHT = 400;      // Height for 1920x1080
-            final int UPWARD_PADDING = 20;         // Look slightly above to catch the ^ arrow above scrollbar
-            final int DOWNWARD_PADDING = 100;      // Extra space for scrolling down
+            final int SCROLLBAR_HEIGHT = 600;      // Height for 1920x1080
+            final int UPWARD_PADDING = 15;         // Look slightly above to catch the ^ arrow above scrollbar
+            final int DOWNWARD_PADDING = 150;      // Extra space for scrolling down
             
             // Initial search region to find the thumb
             Region searchRegion = new Region(
@@ -187,13 +188,21 @@ public class UiStateHandler {
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         try {
-            // Take one screenshot of the entire region
+            // Take a screenshot of the full search region
             BufferedImage screenshot = robot.createScreenCapture(new Rectangle(
                 searchRegion.x,
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
             ));
+    
+            // Save the screenshot with timestamp and position info
+            saveDebugScreenshot(screenshot, searchRegion, "original");
+    
+            // Create a marked version of the screenshot to show what we're detecting
+            // BufferedImage markedScreenshot = deepCopy(screenshot);
+            // Graphics2D g2d = markedScreenshot.createGraphics();
+            // g2d.setColor(Color.RED);
     
             // Single pass scan for the thumb
             int centerX = screenshot.getWidth() / 2;
@@ -211,7 +220,9 @@ public class UiStateHandler {
                     }
                     currentRun++;
                     
-                    // Update best match as we go
+                    // Mark matching pixels in our debug image
+                    // g2d.drawLine(0, y, screenshot.getWidth(), y);
+                    
                     if (currentRun > longestRun) {
                         longestRun = currentRun;
                         bestStart = runStart;
@@ -221,25 +232,62 @@ public class UiStateHandler {
                 }
             }
     
+            // g2d.dispose();
+            
+            // Save the marked version showing what we detected
+            // saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
+    
             // If we found a valid thumb (using minimum height check)
-            if (longestRun >= 15) { // Minimum thumb height
-                return new Rectangle(
+            if (longestRun >= 15) {
+                Rectangle thumbBounds = new Rectangle(
                     searchRegion.x,
                     searchRegion.y + bestStart,
                     searchRegion.w,
                     longestRun
                 );
+                
+                logger.info("Found thumb at y={} with height={} in search region y={} to {}", 
+                    thumbBounds.y, longestRun, searchRegion.y, searchRegion.y + searchRegion.h);
+                
+                return thumbBounds;
             }
     
+            logger.warn("No valid thumb found in region y={} to {}", 
+                searchRegion.y, searchRegion.y + searchRegion.h);
             return null;
+            
         } catch (Exception e) {
             logger.error("Error finding scrollbar thumb: {}", e.getMessage());
             return null;
         }
     }
     
+    // Helper method to save debug screenshots
+    private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
+        try {
+            // Create a debug directory if it doesn't exist
+            File debugDir = new File("debug/scrollbar");
+            debugDir.mkdirs();
+            
+            // Create filename with timestamp and position info
+            String filename = String.format("thumb_scan_%d_%s_y%d-h%d.png",
+                System.currentTimeMillis(),
+                type,
+                searchRegion.y,
+                searchRegion.h);
+            
+            File outputFile = new File(debugDir, filename);
+            ImageIO.write(screenshot, "png", outputFile);
+            
+            logger.debug("Saved {} debug screenshot: {}", type, outputFile.getPath());
+            
+        } catch (IOException e) {
+            logger.error("Failed to save debug screenshot: {}", e.getMessage());
+        }
+    }
+    
     // Helper method for debug screenshots
-    private void saveDebugScreenshot(BufferedImage screenshot, int x, int y) {
+    /** private void saveDebugScreenshot(BufferedImage screenshot, int x, int y) {
         try {
             File outputfile = new File(String.format("debug/thumb_scan_%d.png",
                 System.currentTimeMillis()));
@@ -251,6 +299,7 @@ public class UiStateHandler {
             logger.error("Failed to save debug screenshot", e);
         }
     }
+    */
 
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
@@ -263,7 +312,7 @@ public class UiStateHandler {
     
         try {
             // Initial delay after navigation - this is crucial!
-            // We need to give time for:
+            // Program needs to give time for:
             // 1. Save dialog to fully close
             // 2. UI to update with new document
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS * 2);
@@ -277,16 +326,16 @@ public class UiStateHandler {
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 // Quick popup check only when needed
                 if (consecutiveMatchCount == 0 && popupHandler.isPopupPresent()) {
-                    popupHandler.dismissPopup(true);
+                    popupHandler.dismissPopup(false);
                     // After dismissing popup, give UI time to stabilize
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     continue;
                 }
     
+                // If we can't find the thumb, wait a moment before retrying
+                // This helps if the UI is still updating
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    // If we can't find the thumb, wait a moment before retrying
-                    // This helps if the UI is still updating
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     continue;
                 }
@@ -296,9 +345,6 @@ public class UiStateHandler {
                     if (lastPosition != null && lastPosition.y == newPosition.y) {
                         consecutiveMatchCount++;
                         if (consecutiveMatchCount >= 2) {
-                            // Success! But wait a moment before proceeding
-                            // This ensures the document is fully loaded
-                            Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                             isTrackingStarted = false;
                             return true;
                         }

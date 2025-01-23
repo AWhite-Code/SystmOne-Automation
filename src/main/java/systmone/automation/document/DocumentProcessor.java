@@ -176,7 +176,7 @@ public class DocumentProcessor {
                     logger.info("Popup detected during save - handling retry dialog");
                     
                     // Send Enter to accept retry
-                    automator.getWindow().type(Key.ENTER);
+                    automator.getWindow().type(Key.ESC);
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     
                     // Continue to next attempt
