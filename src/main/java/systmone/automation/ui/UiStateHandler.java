@@ -200,10 +200,9 @@ public class UiStateHandler {
         try {
             // Use stored scrollbarX if available, otherwise calculate from region
             int scanX = scrollbarX > 0 ? scrollbarX : searchRegion.x + (searchRegion.w / 2);
-            
             logger.info("Scanning at x={} from y={} to {}", 
                 scanX, searchRegion.y, searchRegion.y + searchRegion.h);
-    
+     
             // Capture single pixel strip for scanning
             BufferedImage singlePixel = robot.createScreenCapture(new Rectangle(
                 scanX,
@@ -211,37 +210,37 @@ public class UiStateHandler {
                 1,
                 searchRegion.h
             ));
-
             long captureTime = System.currentTimeMillis() - startTime;
             logger.info("Screenshot capture took: {} ms", captureTime);
-            
             logger.info("Actual captured image dimensions: {}x{}", 
                 singlePixel.getWidth(), singlePixel.getHeight());
-    
-            // Create full width screenshot for debug only
+     
+            // Debug image processing start
+            long debugStart = System.currentTimeMillis();
             BufferedImage fullScreenshot = robot.createScreenCapture(new Rectangle(
-                scanX - (searchRegion.w / 2),  // Center the full width capture
+                scanX - (searchRegion.w / 2),
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
             ));
             saveDebugScreenshot(fullScreenshot, searchRegion, "original");
-    
-            // Create marked version same width as original for visualization
+     
             BufferedImage markedScreenshot = new BufferedImage(
-                searchRegion.w,  // Match search region width
+                searchRegion.w,
                 singlePixel.getHeight(),
                 BufferedImage.TYPE_INT_RGB
             );
             Graphics2D g2d = markedScreenshot.createGraphics();
             g2d.drawImage(fullScreenshot, 0, 0, null);
             g2d.setColor(Color.RED);
-    
+     
+            // Pixel processing start
+            long processStart = System.currentTimeMillis();
             int currentRun = 0;
             int longestRun = 0;
             int bestStart = -1;
             int runStart = -1;
-    
+     
             for (int y = 0; y < singlePixel.getHeight(); y++) {
                 Color pixelColor = new Color(singlePixel.getRGB(0, y));
                 
@@ -260,33 +259,38 @@ public class UiStateHandler {
                     currentRun = 0;
                 }
             }
-    
+            long processTime = System.currentTimeMillis() - processStart;
+            logger.info("Pixel processing took: {} ms", processTime);
+     
+            // Finish debug image
             g2d.dispose();
             saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
-    
+            long debugTime = System.currentTimeMillis() - debugStart;
+            logger.info("Debug image processing took: {} ms", debugTime);
+     
             logger.info("Longest run found: {} pixels starting at y={}", longestRun, bestStart);
-    
+     
             if (longestRun >= 3) {
                 Rectangle thumbBounds = new Rectangle(
-                    scanX,  // Use our consistent X coordinate
+                    scanX,
                     searchRegion.y + bestStart,
                     1,
                     longestRun
                 );
                 
-                logger.debug("Found thumb at x={}, y={}, height={}", 
+                logger.info("Found thumb at x={}, y={}, height={}", 
                     scanX, thumbBounds.y, longestRun);
                 
                 return thumbBounds;
             }
-    
+     
             return null;
             
         } catch (Exception e) {
             logger.error("Error finding scrollbar thumb: {}", e.getMessage());
             return null;
         }
-    }
+     }
     
     // Helper method to save debug screenshots
     private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
