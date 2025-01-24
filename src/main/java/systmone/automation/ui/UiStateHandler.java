@@ -225,29 +225,33 @@ public class UiStateHandler {
     }
 
     /**
-     * Finds the scrollbar thumb by color in the specified region
+     * Locates the scrollbar thumb using color detection in a specified region.
+     * Uses pixel-by-pixel color analysis to find the longest continuous run of
+     * scrollbar-colored pixels, which indicates the thumb position.
+     * 
+     * @param searchRegion Region to search for the scrollbar thumb
+     * @return Rectangle representing thumb bounds if found, null otherwise
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
         long startTime = System.currentTimeMillis();
         try {
-            // Use stored scrollbarX if available, otherwise calculate from region
+            // Determine scan coordinates
             int scanX = scrollbarX > 0 ? scrollbarX : searchRegion.x + (searchRegion.w / 2);
             logger.info("Scanning at x={} from y={} to {}", 
                 scanX, searchRegion.y, searchRegion.y + searchRegion.h);
-     
-            // Capture single pixel strip for scanning
+    
+            // Capture vertical strip for analysis
             BufferedImage singlePixel = robot.createScreenCapture(new Rectangle(
                 scanX,
                 searchRegion.y,
                 1,
                 searchRegion.h
             ));
-            long captureTime = System.currentTimeMillis() - startTime;
-            logger.info("Screenshot capture took: {} ms", captureTime);
+            logger.info("Screenshot capture took: {} ms", System.currentTimeMillis() - startTime);
             logger.info("Actual captured image dimensions: {}x{}", 
                 singlePixel.getWidth(), singlePixel.getHeight());
-     
-            // Debug image processing start
+    
+            // Create debug visualization
             long debugStart = System.currentTimeMillis();
             BufferedImage fullScreenshot = robot.createScreenCapture(new Rectangle(
                 scanX - (searchRegion.w / 2),
@@ -256,7 +260,7 @@ public class UiStateHandler {
                 searchRegion.h
             ));
             saveDebugScreenshot(fullScreenshot, searchRegion, "original");
-     
+    
             BufferedImage markedScreenshot = new BufferedImage(
                 searchRegion.w,
                 singlePixel.getHeight(),
@@ -265,14 +269,14 @@ public class UiStateHandler {
             Graphics2D g2d = markedScreenshot.createGraphics();
             g2d.drawImage(fullScreenshot, 0, 0, null);
             g2d.setColor(Color.RED);
-     
-            // Pixel processing start
+    
+            // Process pixels to find thumb position
             long processStart = System.currentTimeMillis();
             int currentRun = 0;
             int longestRun = 0;
             int bestStart = -1;
             int runStart = -1;
-     
+    
             for (int y = 0; y < singlePixel.getHeight(); y++) {
                 Color pixelColor = new Color(singlePixel.getRGB(0, y));
                 
@@ -291,18 +295,16 @@ public class UiStateHandler {
                     currentRun = 0;
                 }
             }
-            long processTime = System.currentTimeMillis() - processStart;
-            logger.info("Pixel processing took: {} ms", processTime);
-     
-            // Finish debug image
+            logger.info("Pixel processing took: {} ms", System.currentTimeMillis() - processStart);
+    
+            // Finalize debug visualization
             g2d.dispose();
             saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
-            long debugTime = System.currentTimeMillis() - debugStart;
-            logger.info("Debug image processing took: {} ms", debugTime);
-     
+            logger.info("Debug image processing took: {} ms", System.currentTimeMillis() - debugStart);
             logger.info("Longest run found: {} pixels starting at y={}", longestRun, bestStart);
-     
-            if (longestRun >= 3) {
+    
+            // Return thumb bounds if valid run found
+            if (longestRun >= ApplicationConfig.MIN_THUMB_MOVEMENT) {
                 Rectangle thumbBounds = new Rectangle(
                     scanX,
                     searchRegion.y + bestStart,
@@ -315,63 +317,28 @@ public class UiStateHandler {
                 
                 return thumbBounds;
             }
-     
+    
             return null;
             
         } catch (Exception e) {
             logger.error("Error finding scrollbar thumb: {}", e.getMessage());
             return null;
         }
-     }
-    
-    // Helper method to save debug screenshots
-    private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
-        try {
-            // Create a debug directory if it doesn't exist
-            File debugDir = new File("debug/scrollbar");
-            debugDir.mkdirs();
-            
-            // Create filename with timestamp and position info
-            String filename = String.format("thumb_scan_%d_%s_y%d-h%d.png",
-                System.currentTimeMillis(),
-                type,
-                searchRegion.y,
-                searchRegion.h);
-            
-            File outputFile = new File(debugDir, filename);
-            ImageIO.write(screenshot, "png", outputFile);
-            
-            logger.debug("Saved {} debug screenshot: {}", type, outputFile.getPath());
-            
-        } catch (IOException e) {
-            logger.error("Failed to save debug screenshot: {}", e.getMessage());
-        }
     }
-    
-    // Helper method for debug screenshots
-    /** private void saveDebugScreenshot(BufferedImage screenshot, int x, int y) {
-        try {
-            File outputfile = new File(String.format("debug/thumb_scan_%d.png",
-                System.currentTimeMillis()));
-            outputfile.getParentFile().mkdirs();
-            ImageIO.write(screenshot, "png", outputfile);
-            logger.debug("Saved scan region screenshot: x={}, y={}, w={}, h={}",
-                x, y, screenshot.getWidth(), screenshot.getHeight());
-        } catch (IOException e) {
-            logger.error("Failed to save debug screenshot", e);
-        }
-    }
-    */
 
     /**
-     * Verifies that the document has fully loaded by monitoring scrollbar movement
-    */
+     * Verifies that a document has fully loaded by monitoring scrollbar movement.
+     * Considers the document loaded when the scrollbar shows consistent downward movement.
+     * 
+     * @param timeout Maximum time in seconds to wait for document loading
+     * @return true if document loading is confirmed, false if timeout or verification fails
+     */
     public boolean verifyDocumentLoaded(double timeout) {
         if (!isTrackingStarted) {
             logger.error("Document tracking not started");
             return false;
         }
-    
+
         try {
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
@@ -382,27 +349,28 @@ public class UiStateHandler {
                 loopCount++;
                 long loopStartTime = System.currentTimeMillis();
                 
-                // Quick popup check
+                // Handle any popup dialogs
                 if (popupHandler.isPopupPresent()) {
                     logger.debug("Loop {}: Popup check at {}", loopCount, loopStartTime);
                     popupHandler.dismissPopup(false);
                     continue;
                 }
-    
-                // Find thumb position
+
+                // Check thumb position
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
                     logger.debug("Loop {}: No thumb found at {}", loopCount, System.currentTimeMillis());
-                    Thread.sleep(5);
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     continue;
                 }
-    
+
+                // Verify scrollbar movement
                 int movement = newPosition.y - initialBaseline.y;
                 logger.debug("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
                 
                 if (movement > 0) {
-                    // Make one additional check to verify movement
-                    Thread.sleep(5);
+                    // Confirm movement is stable
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
                     if (confirmPosition != null && confirmPosition.y > initialBaseline.y) {
                         long totalTime = System.currentTimeMillis() - startTime;
@@ -412,21 +380,26 @@ public class UiStateHandler {
                     }
                     logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
                 }
-    
+
                 long loopTime = System.currentTimeMillis() - loopStartTime;
                 logger.debug("Loop {}: Took {} ms", loopCount, loopTime);
             }
-    
+
             logger.warn("Document load verification timed out after {} ms and {} loops", 
                 System.currentTimeMillis() - startTime, loopCount);
             return false;
-    
+
         } catch (Exception e) {
             logger.error("Verification error: {}", e.getMessage());
             return false;
         }
     }
 
+    // Helper Methods
+
+    /**
+     * Checks if two matches represent the same stable UI element position.
+     */
     private boolean isMatchStable(Match lastMatch, Match currentMatch) {
         if (lastMatch == null) {
             return false;
@@ -434,6 +407,9 @@ public class UiStateHandler {
         return currentMatch.x == lastMatch.x && currentMatch.y == lastMatch.y;
     }
     
+    /**
+     * Determines if a color matches any of the standard scrollbar colors.
+     */
     private boolean isScrollbarColor(Color color) {
         boolean isMatch = isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
                         isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
@@ -447,6 +423,9 @@ public class UiStateHandler {
         return isMatch;
     }
 
+    /**
+     * Compares two colors accounting for configured tolerance.
+     */
     private boolean isMatchingColor(Color c1, Color target) {
         boolean matches = Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
                         Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
@@ -461,7 +440,34 @@ public class UiStateHandler {
         return matches;
     }
 
+    /**
+     * Performs a quick check for the presence of a UI element without stability verification.
+     */
     public Match quickMatchCheck(Pattern pattern) {
         return uiRegion.exists(pattern);
+    }
+
+    /**
+     * Saves debug screenshots for scrollbar detection analysis.
+     */
+    private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
+        try {
+            File debugDir = new File("debug/scrollbar");
+            debugDir.mkdirs();
+            
+            String filename = String.format("thumb_scan_%d_%s_y%d-h%d.png",
+                System.currentTimeMillis(),
+                type,
+                searchRegion.y,
+                searchRegion.h);
+            
+            File outputFile = new File(debugDir, filename);
+            ImageIO.write(screenshot, "png", outputFile);
+            
+            logger.debug("Saved {} debug screenshot: {}", type, outputFile.getPath());
+            
+        } catch (IOException e) {
+            logger.error("Failed to save debug screenshot: {}", e.getMessage());
+        }
     }
 }
