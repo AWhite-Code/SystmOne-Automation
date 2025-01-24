@@ -111,29 +111,45 @@ public class DocumentProcessor {
      * @param index The zero-based index of the document being processed
      */
     private void processSingleDocument(int index) throws FindFailed, InterruptedException {
-        // Wait for the document to be stable on screen
-        Match documentMatch = uiHandler.waitForStableElement(
-            automator.getSelectionBorderPattern(),
-            ApplicationConfig.DIALOG_TIMEOUT
-        );
-
         int documentNumber = index + 1;
+        Match documentMatch;
+    
+        // Only use full stability check for early documents or after failures
+        if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+            documentMatch = uiHandler.waitForStableElement(
+                automator.getSelectionBorderPattern(),
+                ApplicationConfig.DIALOG_TIMEOUT
+            );
+        } else {
+            // Fast path - just check if element exists
+            documentMatch = uiHandler.quickMatchCheck(automator.getSelectionBorderPattern());
+            if (documentMatch == null) {
+                // Fall back to full stability check if fast check fails
+                documentMatch = uiHandler.waitForStableElement(
+                    automator.getSelectionBorderPattern(),
+                    ApplicationConfig.DIALOG_TIMEOUT
+                );
+            }
+        }
+    
+        if (documentMatch == null) {
+            throw new FindFailed("Could not locate document selection border");
+        }
+    
         logger.info("Processing document {} of {} at coordinates ({},{})",
             documentNumber,
             stats.getTotalDocuments(),
             documentMatch.x,
             documentMatch.y
         );
-
-        // Prepare the save path and process the document
+    
+        // Rest of the method remains the same
         String documentPath = buildDocumentPath(documentNumber);
         saveDocument(documentMatch, documentPath);
-
-        // Navigate to next document if not on the last one
-        if (documentNumber < stats.getTotalDocuments()) {  // Fixed typo in 'getotalDocuments'
-        handleNavigation();
-        } 
-        else {
+    
+        if (documentNumber < stats.getTotalDocuments()) {
+            handleNavigation();
+        } else {
             logger.info("Reached final document - processing complete");
         }
     }
@@ -196,26 +212,26 @@ public class DocumentProcessor {
      * depending on the current document number.
      */
     private void handleNavigation() throws FindFailed, InterruptedException {
-        // For early documents, use basic verification
+        // For early documents, use basic verification with longer waits
         if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
             performBasicNavigation();
             return;
         }
-
-        // Attempt scrollbar tracking for later documents
+    
+        // For later documents, use pure scrollbar tracking
         if (!uiHandler.startDocumentTracking()) {
             logger.warn("Scrollbar tracking failed, falling back to basic verification");
             performBasicNavigation();
             return;
         }
-
-        // Navigate with scrollbar verification
+    
+        // Quick navigation with scrollbar verification only
         automator.navigateDown();
         if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
             throw new FindFailed("Failed to verify document loaded after navigation");
         }
     }
-
+    
     /**
      * Performs basic navigation without scrollbar tracking.
      * Used for early documents or as a fallback when scrollbar tracking fails.

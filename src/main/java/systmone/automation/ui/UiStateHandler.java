@@ -74,7 +74,10 @@ public class UiStateHandler {
                 }
                 
                 lastMatch = currentMatch;
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                // Only sleep if we haven't found a stable match yet
+                if (stabilityCount < ApplicationConfig.REQUIRED_STABILITY_COUNT) {
+                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                }
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -334,6 +337,7 @@ public class UiStateHandler {
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
     */
+    
     public boolean verifyDocumentLoaded(double timeout) {
         if (!isTrackingStarted) {
             logger.error("Document tracking not started");
@@ -341,12 +345,6 @@ public class UiStateHandler {
         }
     
         try {
-            // Initial delay after navigation - this is crucial!
-            // Program needs to give time for:
-            // 1. Save dialog to fully close
-            // 2. UI to update with new document
-            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS * 2);
-            
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
             int consecutiveMatchCount = 0;
@@ -354,19 +352,18 @@ public class UiStateHandler {
             Rectangle initialBaseline = baselineThumbPosition;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
+                long iterationStart = System.currentTimeMillis();
+                
                 // Quick popup check only when needed
                 if (consecutiveMatchCount == 0 && popupHandler.isPopupPresent()) {
                     popupHandler.dismissPopup(false);
-                    // After dismissing popup, give UI time to stabilize
-                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
                     continue;
                 }
     
-                // If we can't find the thumb, wait a moment before retrying
-                // This helps if the UI is still updating
+                // Find thumb position
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                    Thread.sleep(5); // Minimal sleep when thumb not found
                     continue;
                 }
     
@@ -375,6 +372,8 @@ public class UiStateHandler {
                     if (lastPosition != null && lastPosition.y == newPosition.y) {
                         consecutiveMatchCount++;
                         if (consecutiveMatchCount >= 2) {
+                            long totalTime = System.currentTimeMillis() - startTime;
+                            logger.info("Document load verification took: {} ms", totalTime);
                             isTrackingStarted = false;
                             return true;
                         }
@@ -382,15 +381,15 @@ public class UiStateHandler {
                         consecutiveMatchCount = 1;
                     }
                     lastPosition = newPosition;
-                    
-                    // Small delay between position checks to let UI settle
-                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS / 2);
-                } else {
-                    // If no movement detected, give the system a bit more time
-                    Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                    Thread.sleep(5); // Minimal sleep between checks
                 }
+                
+                long iterationTime = System.currentTimeMillis() - iterationStart;
+                logger.debug("Verification loop iteration took: {} ms", iterationTime);
             }
     
+            logger.warn("Document load verification timed out after {} ms", 
+                System.currentTimeMillis() - startTime);
             return false;
     
         } catch (Exception e) {
@@ -431,5 +430,9 @@ public class UiStateHandler {
         }
         
         return matches;
+    }
+
+    public Match quickMatchCheck(Pattern pattern) {
+        return uiRegion.exists(pattern);
     }
 }
