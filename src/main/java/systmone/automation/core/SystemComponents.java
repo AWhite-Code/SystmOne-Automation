@@ -61,10 +61,8 @@ public class SystemComponents {
 
     private UiStateHandler createUiStateHandler(Region mainWindow, PopupHandler popupHandler) {
         return new UiStateHandler(
-            mainWindow,                             // UI Region
-            mainWindow,                             // Main window for popup handling
-            automator.getSelectionBorderPattern(),  // Pattern for document selection
-            popupHandler
+            mainWindow,     // Main UI region for monitoring
+            popupHandler    // Handler for popup dialogs
         );
     }
 

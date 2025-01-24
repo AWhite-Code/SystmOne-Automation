@@ -15,11 +15,19 @@ import javax.imageio.ImageIO;
 
 import systmone.automation.config.ApplicationConfig;
 
+/**
+ * Handles UI state verification and stability checking for the SystmOne document processing system.
+ * This class is responsible for monitoring and validating UI elements, particularly focusing on
+ * scrollbar tracking and document loading states. It provides mechanisms to ensure UI elements
+ * are stable and properly loaded before processing continues.
+ * 
+ * The handler uses color detection and pattern matching to track scrollbar movement,
+ * which serves as an indicator of document loading completion. It includes comprehensive
+ * debugging capabilities through screenshot capture and analysis.
+ */
 public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
-    private final Region mainWindow;          // Added for popup handling
-    private final Pattern selectionBorderPattern;  // Added for document verification
     private final Region uiRegion;
     private int scrollbarX;  // Stores the center X coordinate of the scrollbar
     private Robot robot;
@@ -27,25 +35,37 @@ public class UiStateHandler {
     
     // Scrollbar tracking state
     private Rectangle baselineThumbPosition;    // Position at start of document load
-    private Region fixedScrollbarRegion;
+    private Region fixedScrollbarRegion;        // Region where scrollbar movement is tracked
+    private boolean isTrackingStarted;          // Flag to indicate if tracking is active
 
-    private boolean isTrackingStarted;         // Flag to indicate if we're actively tracking
-
-    public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, PopupHandler popupHandler) {
+    /**
+     * Initializes a new UI state handler with the specified region and popup handler.
+     * 
+     * @param uiRegion The region of the UI to monitor for state changes
+     * @param popupHandler Handler for managing popup dialogs
+     * @throws RuntimeException if Robot initialization fails
+     */
+    public UiStateHandler(Region uiRegion, PopupHandler popupHandler) {
         this.uiRegion = uiRegion;
-        this.mainWindow = mainWindow;
-        this.selectionBorderPattern = selectionBorderPattern;
         this.popupHandler = popupHandler;
         
         try {
             this.robot = new Robot();
         } catch (Exception e) {
             logger.error("Failed to initialize Robot for color detection", e);
+            throw new RuntimeException("Failed to initialize Robot", e);
         }
     }
+
     
     /**
-     * Waits for a UI element to appear and remain stable in position.
+     * Waits for a UI element to appear and remain stable in its position.
+     * An element is considered stable when it maintains the same position
+     * for a specified number of consecutive checks.
+     * 
+     * @param pattern The Sikuli pattern to search for in the UI region
+     * @param timeout Maximum time in seconds to wait for element stability
+     * @return Match object if element is found and stable, null otherwise
      */
     public Match waitForStableElement(Pattern pattern, double timeout) {
         long startTime = System.currentTimeMillis();
@@ -74,7 +94,6 @@ public class UiStateHandler {
                 }
                 
                 lastMatch = currentMatch;
-                // Only sleep if we haven't found a stable match yet
                 if (stabilityCount < ApplicationConfig.REQUIRED_STABILITY_COUNT) {
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                 }
@@ -89,7 +108,11 @@ public class UiStateHandler {
     }
 
     /**
-     * Starts tracking a new document loading sequence by establishing baseline position
+     * Starts tracking a new document loading sequence by establishing a baseline
+     * position for the scrollbar thumb. This baseline is used to detect document
+     * loading completion through scrollbar movement.
+     * 
+     * @return true if tracking started successfully, false if initialization failed
      */
     public boolean startDocumentTracking() {
         if (fixedScrollbarRegion == null) {
@@ -130,31 +153,37 @@ public class UiStateHandler {
             return false;
         }
     }
-    
+        
     /**
-     * Initializes scrollbar tracking using color detection
+     * Initializes scrollbar tracking using color detection within a specified region.
+     * Establishes the scrollbar location based on a provided selection pattern and
+     * sets up the tracking region for monitoring document loading.
+     * 
+     * @param selectionPattern Pattern used to locate the initial position
+     * @return true if scrollbar tracking was successfully initialized, false otherwise
      */
     public boolean initializeScrollbarTracking(Pattern selectionPattern) {
         try {
+            // Locate initial selection position
             Match selectionMatch = uiRegion.exists(selectionPattern);
             if (selectionMatch == null) {
                 logger.error("Could not find selection pattern");
                 return false;
             }
-    
-            // Constants for scrollbar dimensions and positioning
-            final int SCROLLBAR_OFFSET = 940;    // Distance from selection to scrollbar
-            final int SCROLLBAR_WIDTH = 18;      // Standard Windows scrollbar width
-            final int SCROLLBAR_HEIGHT = 600;    // Height for 1920x1080
-            final int UPWARD_PADDING = 15;       // Look slightly above to catch the ^ arrow
-            final int DOWNWARD_PADDING = 150;    // Extra space for scrolling down
+
+            // Calculate scrollbar dimensions and position
+            final int SCROLLBAR_OFFSET = ApplicationConfig.SCROLLBAR_OFFSET_X;
+            final int SCROLLBAR_WIDTH = ApplicationConfig.SCROLLBAR_WIDTH;
+            final int SCROLLBAR_HEIGHT = 600;    // Standard height for 1920x1080
+            final int UPWARD_PADDING = ApplicationConfig.SEARCH_RANGE_ABOVE;
+            final int DOWNWARD_PADDING = ApplicationConfig.SEARCH_RANGE_BELOW;
             
-            // Calculate the exact center of where we expect the scrollbar
+            // Calculate scrollbar center position
             int scrollbarCenterX = selectionMatch.x + SCROLLBAR_OFFSET + (SCROLLBAR_WIDTH / 2);
             
-            // Initial search region to find the thumb
+            // Define initial search region for thumb
             Region searchRegion = new Region(
-                scrollbarCenterX - (SCROLLBAR_WIDTH / 2),  // Position region around our center point
+                scrollbarCenterX - (SCROLLBAR_WIDTH / 2),
                 selectionMatch.y - UPWARD_PADDING, 
                 SCROLLBAR_WIDTH,
                 SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING 
@@ -163,20 +192,20 @@ public class UiStateHandler {
             logger.info("Setting up initial search region: x={}, y={} to {}", 
                 scrollbarCenterX, searchRegion.y, searchRegion.y + searchRegion.h);
             
+            // Find and validate scrollbar thumb position
             Rectangle thumbBounds = findScrollbarThumb(searchRegion);
             if (thumbBounds != null) {
-                // Create our ongoing tracking region centered on our known good X coordinate
+                // Establish ongoing tracking region
                 fixedScrollbarRegion = new Region(
-                    scrollbarCenterX - (SCROLLBAR_WIDTH / 2),  // Keep same center point
+                    scrollbarCenterX - (SCROLLBAR_WIDTH / 2),
                     thumbBounds.y - UPWARD_PADDING,
                     SCROLLBAR_WIDTH,
                     SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
                 );
                 
-                // Store the center X coordinate for future scans
                 scrollbarX = scrollbarCenterX;
                 
-                logger.info("Initialized scrollbar tracking: centerX={}, thumb at y={}, search region y={} to {}, height={}", 
+                logger.info("Initialized scrollbar tracking: centerX={}, thumb at y={}, region y={} to {}, height={}", 
                     scrollbarX,
                     thumbBounds.y,
                     fixedScrollbarRegion.y,
@@ -185,10 +214,10 @@ public class UiStateHandler {
                         
                 return true;
             }
-    
+
             logger.error("Could not locate scrollbar thumb in expected region");
             return false;
-    
+
         } catch (Exception e) {
             logger.error("Failed to initialize scrollbar tracking: {}", e.getMessage());
             return false;
