@@ -14,7 +14,8 @@ public class PopupHandler {
     private static final Logger logger = LoggerFactory.getLogger(PopupHandler.class);
     
     private final Region mainWindow;
-    private final Pattern questionPopupPattern;
+    private final Pattern questionMarkPattern;
+    private final Region iconRegion;
     
     // Track popup state for recovery
     private boolean wasPopupHandled;
@@ -29,8 +30,15 @@ public class PopupHandler {
      */
     public PopupHandler(Region mainWindow) {
         this.mainWindow = mainWindow;
-        this.questionPopupPattern = new Pattern("question_popup_title.png")
-            .similar(ApplicationConfig.POPUP_SIMILARITY_THRESHOLD);
+        this.questionMarkPattern = new Pattern("popup_question_mark.png").similar(0.8); // Might need to adjust similarity
+        
+        // Initialize the focused region where we'll look for the icon
+        this.iconRegion = new Region(
+            mainWindow.x + 500,    // Left boundary
+            mainWindow.y + 300,    // Top boundary
+            50,                    // Width - just enough for the icon
+            50                     // Height - just enough for the icon
+        );
     }
     
     /**
@@ -41,26 +49,17 @@ public class PopupHandler {
      */
     public boolean isPopupPresent() {
         try {
-            Match popupMatch = mainWindow.exists(questionPopupPattern);
-            if (popupMatch != null) {
-                // Since we know the popup appears at (707, 434), let's use that
-                // to calculate a reasonable range for popup positions
-                boolean isInValidRange = 
-                    popupMatch.x >= mainWindow.x + 500 &&      // Not too far left
-                    popupMatch.x <= mainWindow.x + 900 &&      // Not too far right
-                    popupMatch.y >= mainWindow.y + 300 &&      // Not too high
-                    popupMatch.y <= mainWindow.y + 500;        // Not too low
-                
-                if (isInValidRange) {
-                    logger.debug("Popup detected at valid position ({}, {})", 
-                        popupMatch.x, popupMatch.y);
-                    return true;
-                } else {
-                    logger.warn("Found popup title but position invalid: ({}, {})", 
-                        popupMatch.x, popupMatch.y);
-                }
-            }
-            return false;
+            // Define small region just around where the question mark icon appears
+            Region iconRegion = new Region(
+                mainWindow.x + 500,    // Left boundary
+                mainWindow.y + 300,    // Top boundary
+                50,                    // Width - just enough for the icon
+                50                     // Height - just enough for the icon
+            );
+            
+            // Look for the green question mark icon in this small region
+            Match iconMatch = iconRegion.exists(questionMarkPattern);
+            return iconMatch != null;
             
         } catch (Exception e) {
             logger.error("Error checking for popup presence", e);
