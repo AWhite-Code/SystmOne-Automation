@@ -1,30 +1,57 @@
 package systmone.automation.ui;
 
-
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
 
-import java.util.concurrent.TimeUnit;
-
 /**
- * Handles core automation interactions with the SystmOne application.
- * Responsible for window management, pattern matching, and basic UI operations.
+ * Provides core automation functionality for interacting with the SystmOne application.
+ * This class manages window operations, UI element detection, and document processing
+ * actions through Sikuli-based pattern matching.
+ * 
+ * Key Responsibilities:
+ * - Manages SystmOne application window focus and state
+ * - Handles document selection and navigation
+ * - Processes document printing and saving operations
+ * - Provides location-specific pattern matching
+ * 
+ * The automator supports both production and test operation modes, with specific
+ * handling for each environment. Pattern matching is configured per location to
+ * accommodate UI variations between different sites.
+ * 
+ * Dependencies:
+ * - Requires an active SystmOne application instance
+ * - Uses Sikuli for UI automation and pattern matching
+ * - Relies on ApplicationConfig for environment settings
+ * - Integrates with PopupHandler for dialog management
  */
 public class SystmOneAutomator {
     private static final Logger logger = LoggerFactory.getLogger(SystmOneAutomator.class);
+
+    // Core application components
     private final App systmOne;
     private final Region systmOneWindow;
     private final ApplicationConfig.Location location;
+    private final PopupHandler popupHandler;
+
+    // UI pattern matchers
     private final Pattern selectionBorderPattern;
     private final Pattern printMenuItemPattern;
     private final Pattern documentCountPattern;
     private final Pattern saveDialogPattern;
-    private final PopupHandler popupHandler;
 
+    /**
+     * Creates a new SystmOne automation controller with location-specific patterns.
+     * Initializes all required patterns and validates the application window state.
+     * 
+     * @param location The deployment location for pattern configuration
+     * @param patternSimilarity The similarity threshold for pattern matching
+     * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
+     */
     public SystmOneAutomator(ApplicationConfig.Location location, double patternSimilarity) throws FindFailed {
         this.location = location;
         this.systmOne = initializeApp();
@@ -40,6 +67,13 @@ public class SystmOneAutomator {
         }
     }
 
+
+    /**
+     * Initializes the SystmOne application instance and verifies its window.
+     * 
+     * @return The initialized App instance
+     * @throws FindFailed if the application window cannot be found
+     */
     private App initializeApp() throws FindFailed {
         App app = new App(ApplicationConfig.APP_TITLE);
         if (app.window() == null) {
@@ -48,16 +82,34 @@ public class SystmOneAutomator {
         return app;
     }
 
+    /**
+     * Creates a location-specific pattern with the given similarity threshold.
+     * 
+     * @param baseName Base name of the pattern image file
+     * @param similarity Pattern matching similarity threshold
+     * @return Configured Pattern instance for UI matching
+     */
     private Pattern initializePattern(String baseName, double similarity) {
         String locationSuffix = "_" + location.name().toLowerCase();
         return new Pattern(baseName + locationSuffix + ".png").similar(similarity);
     }
 
+    /**
+     * Brings the SystmOne window into focus and waits for it to stabilize.
+     * 
+     * @throws InterruptedException if the focus operation is interrupted
+     */
     public void focus() throws InterruptedException {
         systmOne.focus();
         TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
     }
 
+    /**
+     * Extracts and returns the total document count from the UI.
+     * Searches for the document count pattern and parses the surrounding text.
+     * 
+     * @return The document count, or -1 if count cannot be determined
+     */
     public int getDocumentCount() {
         try {
             Match countMatch = systmOneWindow.exists(documentCountPattern);
@@ -82,6 +134,12 @@ public class SystmOneAutomator {
         }
     }
 
+    /**
+     * Extracts the first numeric value from a text string.
+     * 
+     * @param text Text containing numeric values
+     * @return First number found in text, or -1 if no number is found
+     */
     private int extractNumberFromText(String text) {
         return Arrays.stream(text.split("\\s+"))
             .filter(part -> part.matches("\\d+"))
@@ -90,6 +148,13 @@ public class SystmOneAutomator {
             .orElse(-1);
     }
 
+    /**
+     * Initiates the document print operation based on current operation mode.
+     * 
+     * @param documentMatch The matched document UI element
+     * @param savePath Target path for saving the document
+     * @throws FindFailed if required UI elements cannot be found
+     */
     public void printDocument(Match documentMatch, String savePath) throws FindFailed {
         if (ApplicationConfig.TEST_MODE) {
             handleTestModePrintOperation(documentMatch);
@@ -99,8 +164,10 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Handles the print operation in test mode. This method simulates a pop up interaction forcing the save menu to close
-     * that can be manually closed to trigger popup handling testing.
+     * Handles print operations in test mode with simulated popup interactions.
+     * 
+     * @param documentMatch The matched document UI element
+     * @throws FindFailed if required UI elements cannot be found
      */
     private void handleTestModePrintOperation(Match documentMatch) throws FindFailed {
         logger.info("TEST MODE: Starting simulated print operation");
@@ -154,8 +221,11 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Handles the print operation in production mode. This method performs the actual
-     * save operation with clipboard operations and keyboard input.
+     * Handles print operations in production mode with actual save operations.
+     * 
+     * @param documentMatch The matched document UI element
+     * @param savePath Target path for saving the document
+     * @throws FindFailed if required UI elements cannot be found
      */
     private void handleProductionPrintOperation(Match documentMatch, String savePath) throws FindFailed {
         // Start print operation
@@ -180,17 +250,26 @@ public class SystmOneAutomator {
         logger.info("Saved document to: {}", savePath);
     }
 
+
+    /**
+     * Moves the document selection down one position.
+     */
     public void navigateDown() {
         systmOneWindow.type(Key.DOWN);
     }
 
+    /**
+     * Waits for a UI element to appear and stabilize.
+     * 
+     * @param timeout Maximum time to wait in seconds
+     * @return Match object for the stable element
+     * @throws FindFailed if the element is not found within timeout
+     */
     public Match waitForStableElement(int timeout) throws FindFailed {
         return systmOneWindow.wait(selectionBorderPattern, timeout);
     }
-    
-    // Getters
 
-
+    // Getter methods
     public PopupHandler getPopupHandler() {
         return popupHandler;
     }

@@ -45,12 +45,14 @@ public class ApplicationConfig {
     public static final Color SCROLLBAR_SELECTED = new Color(96, 96, 96);    // 60,60,60
     public static final int COLOR_TOLERANCE = 3;
     public static final int SCROLLBAR_SEARCH_OFFSET_X = 250;  // Offset from selection border
-    public static final int SCROLLBAR_WIDTH = 20;             // Width of scrollbar
-    public static final int SCROLLBAR_OFFSET_X = 947;      // X offset from selection to scrollbar
+    public static final int SCROLLBAR_WIDTH = 18;             // Width of scrollbar
+    public static final int SCROLLBAR_OFFSET_X = 935;      // X offset from selection to scrollbar
     public static final int SEARCH_RANGE_ABOVE = 100;      // Pixels to search above selection
     public static final int SEARCH_RANGE_BELOW = 300;      // Pixels to search below selection
     public static final int MIN_THUMB_MOVEMENT = 3;        // Minimum pixels to consider real movement
     public static final int MAX_NO_MOVEMENT_COUNT = 10;    // Maximum checks before assuming no movemen
+    public static final int UPWARD_PADDING = 15;
+    public static final int DOWNWARD_PADDING = 150;
 
     // Popup detection settings
     public static final float POPUP_SIMILARITY_THRESHOLD = 0.9f;
