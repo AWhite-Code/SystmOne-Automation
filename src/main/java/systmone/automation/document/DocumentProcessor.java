@@ -17,9 +17,25 @@ import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Handles the core document processing workflow for SystmOne automation.
- * This class coordinates between the UI automation, document saving,
- * and navigation components to process a batch of documents.
+ * Manages the complete document processing workflow within the SystmOne automation system.
+ * This class orchestrates the interaction between UI automation, document handling,
+ * and navigation components to process document batches efficiently and reliably.
+ * 
+ * Key Responsibilities:
+ * - Coordinates document identification and selection
+ * - Manages document save operations with retry capability
+ * - Handles inter-document navigation with performance optimization
+ * - Maintains processing statistics and error tracking
+ * - Supports both production and test operation modes
+ * 
+ * The processor implements two navigation strategies:
+ * 1. Basic Navigation: Used for initial documents and fallback scenarios
+ * 2. Scrollbar Tracking: Optimized navigation for better performance
+ * 
+ * Error handling includes:
+ * - Automatic retry for save operations
+ * - Popup detection and recovery
+ * - Comprehensive error logging and statistics
  */
 public class DocumentProcessor {
     private static final Logger logger = LoggerFactory.getLogger(DocumentProcessor.class);
@@ -66,11 +82,17 @@ public class DocumentProcessor {
     }
 
     /**
-     * Initiates the document processing workflow.
-     * This method coordinates the entire process of counting documents,
-     * processing each one, and maintaining processing statistics.
+     * Orchestrates the complete document processing workflow.
+     * Manages document counting, individual processing operations,
+     * and maintains comprehensive processing statistics.
      *
-     * @return ProcessingStats containing the results of the processing run
+     * The workflow includes:
+     * - Initial document count validation
+     * - Sequential document processing with error handling
+     * - Progress tracking and statistics collection
+     * - Graceful handling of kill switch interruption
+     *
+     * @return ProcessingStats containing detailed processing results
      */
     public ProcessingStats processDocuments() {
         logger.info("Starting document processing workflow");
@@ -104,11 +126,20 @@ public class DocumentProcessor {
     }
 
     /**
-     * Processes a single document at the specified index.
-     * This includes identifying the document on screen, saving it,
-     * and navigating to the next document if applicable.
+     * Processes a single document using an optimized approach based on
+     * the current processing stage. Early documents use full stability
+     * verification, while later documents can use an optimized path
+     * with fallback to full verification if needed.
      *
-     * @param index The zero-based index of the document being processed
+     * The processing sequence includes:
+     * - Document element detection and verification
+     * - Path generation for document storage
+     * - Document save operation
+     * - Navigation to next document
+     *
+     * @param index Zero-based index of the document to process
+     * @throws FindFailed if document elements cannot be located
+     * @throws InterruptedException if processing is interrupted
      */
     private void processSingleDocument(int index) throws FindFailed, InterruptedException {
         int documentNumber = index + 1;
@@ -155,16 +186,20 @@ public class DocumentProcessor {
     }
 
     /**
-     * Builds the full path for saving the current document.
-     * Creates a standardized filename based on the document number.
+     * Generates the standardized output path for a document.
+     * Creates consistent, numbered filenames within the output directory.
      */
     private String buildDocumentPath(int documentNumber) {
         return Paths.get(outputFolder, "Document" + documentNumber + ".pdf").toString();
     }
 
     /**
-     * Primary method for processing a document save operation.
-     * Handles both production and test scenarios.
+     * Manages document save operations with automatic retry capability.
+     * Implements a robust save process that handles:
+     * - Clipboard path management
+     * - Save dialog interaction
+     * - Popup detection and recovery
+     * - Multiple save attempts on failure
      */
     private void saveDocument(Match documentMatch, String documentPath) 
             throws FindFailed, InterruptedException {
@@ -208,8 +243,14 @@ public class DocumentProcessor {
     }
 
     /**
-     * Manages navigation between documents, using either basic or scrollbar verification
-     * depending on the current document number.
+     * Handles inter-document navigation using the appropriate strategy.
+     * Selects between basic and scrollbar-based navigation based on
+     * processing progress and system capabilities.
+     *
+     * The method implements performance optimization by:
+     * - Using simpler verification for early documents
+     * - Employing scrollbar tracking for later documents
+     * - Providing automatic fallback to basic navigation
      */
     private void handleNavigation() throws FindFailed, InterruptedException {
         long startTime = System.currentTimeMillis();
@@ -241,8 +282,9 @@ public class DocumentProcessor {
     }
     
     /**
-     * Performs basic navigation without scrollbar tracking.
-     * Used for early documents or as a fallback when scrollbar tracking fails.
+     * Provides basic document-to-document navigation functionality.
+     * Used for initial documents and as a fallback when optimized
+     * navigation is unavailable or fails.
      */
     private void performBasicNavigation() throws FindFailed {
         automator.navigateDown();
@@ -257,8 +299,9 @@ public class DocumentProcessor {
     }
 
     /**
-     * Handles errors that occur during document processing.
-     * Records the error in the processing stats and logs it appropriately.
+     * Manages processing errors with comprehensive tracking and logging.
+     * Creates structured error records and maintains processing statistics
+     * while ensuring appropriate error visibility.
      */
     private void handleProcessingError(int documentNumber, Exception e) {
         String errorMessage = String.format("Error processing document %d: %s",
@@ -268,9 +311,11 @@ public class DocumentProcessor {
         logger.error(errorMessage, e);
     }
 
+
     /**
-     * Test method for verifying popup handling functionality.
-     * Only runs in test mode.
+     * Executes test operations for popup handling verification.
+     * Provides a simplified workflow focused on popup interaction
+     * testing in a controlled environment.
      */
     public void runTestOperations() throws FindFailed, InterruptedException {
         logger.info("TEST MODE: Starting popup handling verification");
