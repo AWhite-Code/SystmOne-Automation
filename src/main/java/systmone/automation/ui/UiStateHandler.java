@@ -37,6 +37,8 @@ public class UiStateHandler {
     private Rectangle baselineThumbPosition;    // Position at start of document load
     private Region fixedScrollbarRegion;        // Region where scrollbar movement is tracked
     private boolean isTrackingStarted;          // Flag to indicate if tracking is active
+    private final Region mainWindow;
+    private final Pattern selectionBorderPattern;
 
     /**
      * Initializes a new UI state handler with the specified region and popup handler.
@@ -45,15 +47,16 @@ public class UiStateHandler {
      * @param popupHandler Handler for managing popup dialogs
      * @throws RuntimeException if Robot initialization fails
      */
-    public UiStateHandler(Region uiRegion, PopupHandler popupHandler) {
+    public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, PopupHandler popupHandler) {
         this.uiRegion = uiRegion;
+        this.mainWindow = mainWindow;
+        this.selectionBorderPattern = selectionBorderPattern;
         this.popupHandler = popupHandler;
         
         try {
             this.robot = new Robot();
         } catch (Exception e) {
             logger.error("Failed to initialize Robot for color detection", e);
-            throw new RuntimeException("Failed to initialize Robot", e);
         }
     }
 
@@ -173,7 +176,7 @@ public class UiStateHandler {
 
             // Calculate scrollbar dimensions and position
             final int SCROLLBAR_OFFSET = ApplicationConfig.SCROLLBAR_OFFSET_X;
-            final int SCROLLBAR_WIDTH = ApplicationConfig.SCROLLBAR_WIDTH;
+            final int SCROLLBAR_WIDTH = 18;
             final int SCROLLBAR_HEIGHT = 600;    // Standard height for 1920x1080
             final int UPWARD_PADDING = ApplicationConfig.SEARCH_RANGE_ABOVE;
             final int DOWNWARD_PADDING = ApplicationConfig.SEARCH_RANGE_BELOW;
