@@ -30,14 +30,21 @@ public class PopupHandler {
      */
     public PopupHandler(Region mainWindow) {
         this.mainWindow = mainWindow;
-        this.questionMarkPattern = new Pattern("popup_question_mark.png").similar(0.8); // Might need to adjust similarity
+        this.questionMarkPattern = new Pattern("popup_question_mark.png").similar(0.8);
         
-        // Initialize the focused region where we'll look for the icon
+        // Calculate middle quarter of screen
+        int screenWidth = mainWindow.w;
+        int screenHeight = mainWindow.h;
+        
+        int quarterWidth = screenWidth / 4;
+        int quarterHeight = screenHeight / 4;
+        
+        // Create region that's the middle quarter of the screen
         this.iconRegion = new Region(
-            mainWindow.x + 500,    // Left boundary
-            mainWindow.y + 300,    // Top boundary
-            50,                    // Width - just enough for the icon
-            50                     // Height - just enough for the icon
+            mainWindow.x + quarterWidth,     // Start 1/4 in from left
+            mainWindow.y + quarterHeight,    // Start 1/4 down from top
+            quarterWidth * 2,                // Middle half of width
+            quarterHeight * 2                // Middle half of height
         );
     }
     
@@ -49,18 +56,15 @@ public class PopupHandler {
      */
     public boolean isPopupPresent() {
         try {
-            // Define small region just around where the question mark icon appears
-            Region iconRegion = new Region(
-                mainWindow.x + 500,    // Left boundary
-                mainWindow.y + 300,    // Top boundary
-                50,                    // Width - just enough for the icon
-                50                     // Height - just enough for the icon
-            );
+            long startTime = System.currentTimeMillis();
+            // Use find() in the region to explicitly limit the search area
+            iconRegion.find(questionMarkPattern);
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("Popup check took: {} ms", duration);
+            return true;
             
-            // Look for the green question mark icon in this small region
-            Match iconMatch = iconRegion.exists(questionMarkPattern);
-            return iconMatch != null;
-            
+        } catch (FindFailed e) {
+            return false;
         } catch (Exception e) {
             logger.error("Error checking for popup presence", e);
             return false;
