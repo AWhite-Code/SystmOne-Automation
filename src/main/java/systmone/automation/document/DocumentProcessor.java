@@ -212,24 +212,32 @@ public class DocumentProcessor {
      * depending on the current document number.
      */
     private void handleNavigation() throws FindFailed, InterruptedException {
-        // For early documents, use basic verification with longer waits
+        long startTime = System.currentTimeMillis();
+        
         if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+            logger.info("Navigation started (basic mode) at: {}", startTime);
             performBasicNavigation();
             return;
         }
     
-        // For later documents, use pure scrollbar tracking
+        logger.info("Navigation started (scrollbar mode) at: {}", startTime);
+        
         if (!uiHandler.startDocumentTracking()) {
-            logger.warn("Scrollbar tracking failed, falling back to basic verification");
+            logger.warn("Scrollbar tracking failed after {} ms", System.currentTimeMillis() - startTime);
             performBasicNavigation();
             return;
         }
     
-        // Quick navigation with scrollbar verification only
+        logger.info("Tracking started, sending DOWN key at: {}", System.currentTimeMillis());
         automator.navigateDown();
+        logger.info("DOWN key sent at: {}", System.currentTimeMillis());
+        
         if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
             throw new FindFailed("Failed to verify document loaded after navigation");
         }
+        
+        logger.info("Navigation completed at: {}, total time: {} ms", 
+            System.currentTimeMillis(), System.currentTimeMillis() - startTime);
     }
     
     /**

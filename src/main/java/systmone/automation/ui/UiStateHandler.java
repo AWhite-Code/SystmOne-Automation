@@ -337,7 +337,6 @@ public class UiStateHandler {
     /**
      * Verifies that the document has fully loaded by monitoring scrollbar movement
     */
-    
     public boolean verifyDocumentLoaded(double timeout) {
         if (!isTrackingStarted) {
             logger.error("Document tracking not started");
@@ -347,15 +346,16 @@ public class UiStateHandler {
         try {
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
-            int consecutiveMatchCount = 0;
-            Rectangle lastPosition = null;
             Rectangle initialBaseline = baselineThumbPosition;
+            int loopCount = 0;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
-                long iterationStart = System.currentTimeMillis();
+                loopCount++;
+                long loopStartTime = System.currentTimeMillis();
                 
-                // Quick popup check only when needed
-                if (consecutiveMatchCount == 0 && popupHandler.isPopupPresent()) {
+                // Quick popup check
+                if (popupHandler.isPopupPresent()) {
+                    logger.debug("Loop {}: Popup check at {}", loopCount, loopStartTime);
                     popupHandler.dismissPopup(false);
                     continue;
                 }
@@ -363,33 +363,33 @@ public class UiStateHandler {
                 // Find thumb position
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    Thread.sleep(5); // Minimal sleep when thumb not found
+                    logger.debug("Loop {}: No thumb found at {}", loopCount, System.currentTimeMillis());
+                    Thread.sleep(5);
                     continue;
                 }
     
                 int movement = newPosition.y - initialBaseline.y;
-                if (movement > 0) {
-                    if (lastPosition != null && lastPosition.y == newPosition.y) {
-                        consecutiveMatchCount++;
-                        if (consecutiveMatchCount >= 2) {
-                            long totalTime = System.currentTimeMillis() - startTime;
-                            logger.info("Document load verification took: {} ms", totalTime);
-                            isTrackingStarted = false;
-                            return true;
-                        }
-                    } else {
-                        consecutiveMatchCount = 1;
-                    }
-                    lastPosition = newPosition;
-                    Thread.sleep(5); // Minimal sleep between checks
-                }
+                logger.debug("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
                 
-                long iterationTime = System.currentTimeMillis() - iterationStart;
-                logger.debug("Verification loop iteration took: {} ms", iterationTime);
+                if (movement > 0) {
+                    // Make one additional check to verify movement
+                    Thread.sleep(5);
+                    Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
+                    if (confirmPosition != null && confirmPosition.y > initialBaseline.y) {
+                        long totalTime = System.currentTimeMillis() - startTime;
+                        logger.info("Document load verification took: {} ms after {} loops", totalTime, loopCount);
+                        isTrackingStarted = false;
+                        return true;
+                    }
+                    logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
+                }
+    
+                long loopTime = System.currentTimeMillis() - loopStartTime;
+                logger.debug("Loop {}: Took {} ms", loopCount, loopTime);
             }
     
-            logger.warn("Document load verification timed out after {} ms", 
-                System.currentTimeMillis() - startTime);
+            logger.warn("Document load verification timed out after {} ms and {} loops", 
+                System.currentTimeMillis() - startTime, loopCount);
             return false;
     
         } catch (Exception e) {
