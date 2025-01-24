@@ -5,32 +5,46 @@ import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 
 import org.sikuli.script.Region;
+
 /**
  * Represents the complete set of initialized components required for the automation system.
- * This class ensures all necessary components are present and valid before the system starts.
- * It acts as a container for passing related components together through the application.
+ * This class acts as a dependency container and ensures all components are properly initialized
+ * before system operation begins. It maintains strict validation of component dependencies and
+ * manages their lifecycle.
  * 
- * The components are initialized in a specific order to handle dependencies:
- * 1. SystmOneAutomator - Core automation functionality
- * 2. PopupHandler - Manages popup detection and handling
- * 3. UiStateHandler - Manages UI state and verification
+ * Component Initialization Order:
+ * 1. SystmOneAutomator - Provides core window automation capabilities
+ * 2. PopupHandler - Manages system dialog detection and interaction
+ * 3. UiStateHandler - Handles UI state verification and stability checking
  * 
- * This ordering ensures each component has access to its required dependencies while
- * avoiding circular references.
+ * Key Responsibilities:
+ * - Validates all component dependencies during initialization
+ * - Maintains references to core system components
+ * - Provides controlled access to system components
+ * - Ensures proper component initialization order
+ * 
+ * Dependencies:
+ * - Requires an active SystmOne application window
+ * - Requires a valid output folder path for document storage
  */
 public class SystemComponents {
+    // Core automation components
     private final SystmOneAutomator automator;
     private final UiStateHandler uiHandler;
     private final PopupHandler popupHandler;
+    
+    // System configuration
     private final String outputFolder;
 
     /**
-     * Creates a new SystemComponents instance with proper component initialization order.
-     * Components are created here rather than passed in to ensure correct dependency flow.
+     * Creates a new SystemComponents instance with the required components.
+     * Components are initialized in a specific order to maintain proper dependency flow
+     * and ensure system stability.
      * 
-     * @param automator The initialized SystmOne automator
-     * @param outputFolder The path to the output folder
-     * @throws IllegalArgumentException if any parameter is null
+     * @param automator The initialized SystmOne automator instance
+     * @param outputFolder The absolute path to the document output folder
+     * @throws IllegalArgumentException if automator is null, output folder is null/empty,
+     *         or if the main application window cannot be accessed
      */
     public SystemComponents(SystmOneAutomator automator, String outputFolder) {
         if (automator == null) {
@@ -40,67 +54,73 @@ public class SystemComponents {
             throw new IllegalArgumentException("Output folder path cannot be null or empty");
         }
 
-        // Get the window region once - this prevents multiple calls to getWindow()
+        // Cache the window region to prevent multiple lookups
         Region mainWindow = automator.getWindow();
         if (mainWindow == null) {
             throw new IllegalArgumentException("Could not get main window region from automator");
         }
 
-        // Store primary components
+        // Initialize core components
         this.automator = automator;
         this.outputFolder = outputFolder;
         
-        // Create components in correct order, using the pre-fetched window
+        // Create dependent components in order
         this.popupHandler = createPopupHandler(mainWindow);
         this.uiHandler = createUiStateHandler(mainWindow, this.popupHandler);
     }
 
+    /**
+     * Creates and initializes the popup handler component.
+     * 
+     * @param mainWindow The main application window region
+     * @return Initialized PopupHandler instance
+     */
     private PopupHandler createPopupHandler(Region mainWindow) {
         return new PopupHandler(mainWindow);
     }
 
+    /**
+     * Creates and initializes the UI state handler component with its dependencies.
+     * 
+     * @param mainWindow The main application window region
+     * @param popupHandler The popup handler dependency
+     * @return Initialized UiStateHandler instance
+     */
     private UiStateHandler createUiStateHandler(Region mainWindow, PopupHandler popupHandler) {
-        return new UiStateHandler(
-            mainWindow,     // Main UI region for monitoring
-            popupHandler    // Handler for popup dialogs
-        );
+        return new UiStateHandler(mainWindow, popupHandler);
     }
 
     /**
-     * Returns the PopupHandler component responsible for detecting and managing
-     * system popups during automation.
-
-     * @return The popup handler component
+     * Provides access to the popup handling component.
+     * 
+     * @return The initialized PopupHandler instance
      */
     public PopupHandler getPopupHandler() {
         return popupHandler;
     }
 
     /**
-     * Returns the SystmOne automator component that handles core automation
-     * interactions with the SystmOne application.
+     * Provides access to the core automation component.
      * 
-     * @return The SystmOne automator component
+     * @return The initialized SystmOneAutomator instance
      */
     public SystmOneAutomator getAutomator() {
         return automator;
     }
 
     /**
-     * Returns the UI state handler component that manages UI state verification
-     * and stability checking.
+     * Provides access to the UI state management component.
      * 
-     * @return The UI state handler component
+     * @return The initialized UiStateHandler instance
      */
     public UiStateHandler getUiHandler() {
         return uiHandler;
     }
 
     /**
-     * Returns the configured output folder path where processed documents
-     * will be saved.
+     * Provides access to the configured output folder path.
      * 
-     * @return The output folder path
+     * @return The absolute path to the document output folder
      */
     public String getOutputFolder() {
         return outputFolder;
