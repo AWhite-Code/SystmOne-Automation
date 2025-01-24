@@ -21,6 +21,7 @@ public class UiStateHandler {
     private final Region mainWindow;          // Added for popup handling
     private final Pattern selectionBorderPattern;  // Added for document verification
     private final Region uiRegion;
+    private int scrollbarX;  // Stores the center X coordinate of the scrollbar
     private Robot robot;
     private PopupHandler popupHandler;
     
@@ -139,40 +140,48 @@ public class UiStateHandler {
             }
     
             // Constants for scrollbar dimensions and positioning
-            final int SCROLLBAR_WIDTH = 18;        // Standard Windows scrollbar width
-            final int SCROLLBAR_HEIGHT = 600;      // Height for 1920x1080
-            final int UPWARD_PADDING = 15;         // Look slightly above to catch the ^ arrow above scrollbar
-            final int DOWNWARD_PADDING = 150;      // Extra space for scrolling down
+            final int SCROLLBAR_OFFSET = 940;    // Distance from selection to scrollbar
+            final int SCROLLBAR_WIDTH = 18;      // Standard Windows scrollbar width
+            final int SCROLLBAR_HEIGHT = 600;    // Height for 1920x1080
+            final int UPWARD_PADDING = 15;       // Look slightly above to catch the ^ arrow
+            final int DOWNWARD_PADDING = 150;    // Extra space for scrolling down
+            
+            // Calculate the exact center of where we expect the scrollbar
+            int scrollbarCenterX = selectionMatch.x + SCROLLBAR_OFFSET + (SCROLLBAR_WIDTH / 2);
             
             // Initial search region to find the thumb
             Region searchRegion = new Region(
-                selectionMatch.x + 940 - selectionMatch.x,
+                scrollbarCenterX - (SCROLLBAR_WIDTH / 2),  // Position region around our center point
                 selectionMatch.y - UPWARD_PADDING, 
                 SCROLLBAR_WIDTH,
                 SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING 
             );
             
-            logger.info("Setting up initial search region: y={} to {}", 
-                searchRegion.y, searchRegion.y + searchRegion.h);
+            logger.info("Setting up initial search region: x={}, y={} to {}", 
+                scrollbarCenterX, searchRegion.y, searchRegion.y + searchRegion.h);
             
-                Rectangle thumbBounds = findScrollbarThumb(searchRegion);
-                if (thumbBounds != null) {
-                    // Create our ongoing tracking region
-                    fixedScrollbarRegion = new Region(
-                        thumbBounds.x,
-                        thumbBounds.y - UPWARD_PADDING,    // Maintain upward visibility
-                        SCROLLBAR_WIDTH,
-                        SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
-                    );
-                    
-                    logger.info("Initialized scrollbar tracking: thumb at y={}, search region y={} to {}, height={}", 
-                        thumbBounds.y,
-                        fixedScrollbarRegion.y,
-                        fixedScrollbarRegion.y + fixedScrollbarRegion.h,
-                        fixedScrollbarRegion.h);
+            Rectangle thumbBounds = findScrollbarThumb(searchRegion);
+            if (thumbBounds != null) {
+                // Create our ongoing tracking region centered on our known good X coordinate
+                fixedScrollbarRegion = new Region(
+                    scrollbarCenterX - (SCROLLBAR_WIDTH / 2),  // Keep same center point
+                    thumbBounds.y - UPWARD_PADDING,
+                    SCROLLBAR_WIDTH,
+                    SCROLLBAR_HEIGHT + UPWARD_PADDING + DOWNWARD_PADDING
+                );
+                
+                // Store the center X coordinate for future scans
+                scrollbarX = scrollbarCenterX;
+                
+                logger.info("Initialized scrollbar tracking: centerX={}, thumb at y={}, search region y={} to {}, height={}", 
+                    scrollbarX,
+                    thumbBounds.y,
+                    fixedScrollbarRegion.y,
+                    fixedScrollbarRegion.y + fixedScrollbarRegion.h,
+                    fixedScrollbarRegion.h);
                         
-                    return true;
-                }
+                return true;
+            }
     
             logger.error("Could not locate scrollbar thumb in expected region");
             return false;
@@ -187,41 +196,61 @@ public class UiStateHandler {
      * Finds the scrollbar thumb by color in the specified region
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
+        long startTime = System.currentTimeMillis();
         try {
-            // Take a screenshot of the full search region
-            BufferedImage screenshot = robot.createScreenCapture(new Rectangle(
-                searchRegion.x,
+            // Use stored scrollbarX if available, otherwise calculate from region
+            int scanX = scrollbarX > 0 ? scrollbarX : searchRegion.x + (searchRegion.w / 2);
+            
+            logger.info("Scanning at x={} from y={} to {}", 
+                scanX, searchRegion.y, searchRegion.y + searchRegion.h);
+    
+            // Capture single pixel strip for scanning
+            BufferedImage singlePixel = robot.createScreenCapture(new Rectangle(
+                scanX,
+                searchRegion.y,
+                1,
+                searchRegion.h
+            ));
+
+            long captureTime = System.currentTimeMillis() - startTime;
+            logger.info("Screenshot capture took: {} ms", captureTime);
+            
+            logger.info("Actual captured image dimensions: {}x{}", 
+                singlePixel.getWidth(), singlePixel.getHeight());
+    
+            // Create full width screenshot for debug only
+            BufferedImage fullScreenshot = robot.createScreenCapture(new Rectangle(
+                scanX - (searchRegion.w / 2),  // Center the full width capture
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
             ));
+            saveDebugScreenshot(fullScreenshot, searchRegion, "original");
     
-            // Save the screenshot with timestamp and position info
-            saveDebugScreenshot(screenshot, searchRegion, "original");
+            // Create marked version same width as original for visualization
+            BufferedImage markedScreenshot = new BufferedImage(
+                searchRegion.w,  // Match search region width
+                singlePixel.getHeight(),
+                BufferedImage.TYPE_INT_RGB
+            );
+            Graphics2D g2d = markedScreenshot.createGraphics();
+            g2d.drawImage(fullScreenshot, 0, 0, null);
+            g2d.setColor(Color.RED);
     
-            // Create a marked version of the screenshot to show what we're detecting
-            // BufferedImage markedScreenshot = deepCopy(screenshot);
-            // Graphics2D g2d = markedScreenshot.createGraphics();
-            // g2d.setColor(Color.RED);
-    
-            // Single pass scan for the thumb
-            int centerX = screenshot.getWidth() / 2;
             int currentRun = 0;
             int longestRun = 0;
             int bestStart = -1;
             int runStart = -1;
     
-            for (int y = 0; y < screenshot.getHeight(); y++) {
-                Color pixelColor = new Color(screenshot.getRGB(centerX, y));
+            for (int y = 0; y < singlePixel.getHeight(); y++) {
+                Color pixelColor = new Color(singlePixel.getRGB(0, y));
                 
                 if (isScrollbarColor(pixelColor)) {
                     if (currentRun == 0) {
                         runStart = y;
                     }
                     currentRun++;
-                    
-                    // Mark matching pixels in our debug image
-                    // g2d.drawLine(0, y, screenshot.getWidth(), y);
+                    g2d.drawLine(0, y, markedScreenshot.getWidth(), y);
                     
                     if (currentRun > longestRun) {
                         longestRun = currentRun;
@@ -232,28 +261,25 @@ public class UiStateHandler {
                 }
             }
     
-            // g2d.dispose();
-            
-            // Save the marked version showing what we detected
-            // saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
+            g2d.dispose();
+            saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
     
-            // If we found a valid thumb (using minimum height check)
-            if (longestRun >= 15) {
+            logger.info("Longest run found: {} pixels starting at y={}", longestRun, bestStart);
+    
+            if (longestRun >= 3) {
                 Rectangle thumbBounds = new Rectangle(
-                    searchRegion.x,
+                    scanX,  // Use our consistent X coordinate
                     searchRegion.y + bestStart,
-                    searchRegion.w,
+                    1,
                     longestRun
                 );
                 
-                logger.info("Found thumb at y={} with height={} in search region y={} to {}", 
-                    thumbBounds.y, longestRun, searchRegion.y, searchRegion.y + searchRegion.h);
+                logger.debug("Found thumb at x={}, y={}, height={}", 
+                    scanX, thumbBounds.y, longestRun);
                 
                 return thumbBounds;
             }
     
-            logger.warn("No valid thumb found in region y={} to {}", 
-                searchRegion.y, searchRegion.y + searchRegion.h);
             return null;
             
         } catch (Exception e) {
