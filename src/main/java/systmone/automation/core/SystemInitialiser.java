@@ -12,63 +12,95 @@ import java.time.LocalDateTime;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
-import systmone.automation.ui.UiStateHandler;
 
 /**
- * Handles the complete initialization process for the SystmOne automation system.
- * This class manages the sequential setup of all required components, ensuring each
- * step is completed successfully before proceeding to the next.
+ * Manages the complete initialization sequence for the SystmOne automation system.
+ * This class coordinates the setup of all required components in a specific order,
+ * ensuring proper dependency management and validation at each step.
+ * 
+ * The initialization process follows a strict sequence:
+ * 1. Image Library Setup - Loads and validates required UI pattern images
+ * 2. Location Determination - Identifies the deployment environment
+ * 3. Automator Creation - Initializes the core automation component
+ * 4. Window Focus - Ensures proper application window state
+ * 5. Output Directory Setup - Creates the document storage structure
+ * 6. Component Integration - Assembles and validates all system components
+ * 
+ * Each step includes comprehensive error handling and validation to ensure
+ * the system starts in a known-good state. The process can be safely
+ * interrupted at any point, with appropriate cleanup and error reporting.
+ * 
+ * Dependencies:
+ * - Requires access to an image directory with UI pattern files
+ * - Needs write access for output directory creation
+ * - Requires an active SystmOne application instance
  */
 public class SystemInitialiser {
     private static final Logger logger = LoggerFactory.getLogger(SystemInitialiser.class);
 
     /**
-     * Performs the complete system initialization process.
-     * Each step is executed in sequence, with proper error handling and reporting.
+     * Executes the complete system initialization sequence.
+     * Each initialization step is executed in order, with validation
+     * between steps to ensure system integrity.
+     * 
+     * @return InitialisationResult containing either initialized components
+     *         or a detailed error message if initialization fails
      */
     public InitialisationResult initialise() {
         try {
-            // Step 1: Initialize image library
+            // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
                 return InitialisationResult.failed("Image library initialization failed");
             }
-
-            // Step 2: Determine location
+    
+            // Analyze UI patterns to identify deployment environment
             ApplicationConfig.Location location = determineLocation();
             if (location == null) {
                 return InitialisationResult.failed("Location determination failed");
             }
-
-            // Step 3: Create and initialize automator
+    
+            // Create automator with location-specific configuration
             SystmOneAutomator automator = createAutomator(location);
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
-
+    
+            // Ensure proper application window state
             try {
                 automator.focus();
             } catch (InterruptedException e) {
                 return InitialisationResult.failed("Failed to focus SystmOne window: " + e.getMessage());
             }
-
-            // Step 4: Create output directory
+    
+            // Establish document storage structure
             String outputFolder = initializeOutputDirectory();
             if (outputFolder == null) {
                 return InitialisationResult.failed("Failed to create output directory");
             }
-
-            // Step 5: Create UI handler
-            UiStateHandler uiHandler = new UiStateHandler(automator.getWindow());
-
-            // Create system components with all initialized parts
-            SystemComponents components = new SystemComponents(automator, uiHandler, outputFolder);
+    
+            // Initialize core system component container
+            SystemComponents components = new SystemComponents(automator, outputFolder);
+            
+            // Verify all required components are properly initialized
+            if (components.getUiHandler() == null || components.getPopupHandler() == null) {
+                return InitialisationResult.failed("Failed to initialize all required components");
+            }
+    
             return InitialisationResult.succeeded(components);
-
+    
         } catch (Exception e) {
             return InitialisationResult.failed("Unexpected error during initialization: " + e.getMessage());
         }
     }
 
+    /**
+     * Initializes the image pattern library for UI automation.
+     * Validates the image directory existence and contents, ensuring
+     * all required pattern files are available.
+     * 
+     * @return true if the image library is successfully initialized,
+     *         false if any validation fails
+     */
     private boolean initializeImageLibrary() {
         try {
             File imageDir = new File(ApplicationConfig.IMAGE_DIR_PATH).getAbsoluteFile();
@@ -95,6 +127,13 @@ public class SystemInitialiser {
         }
     }
 
+    /**
+     * Creates a timestamped output directory for document storage.
+     * The directory structure follows the configured format and base path.
+     * 
+     * @return The absolute path to the created output directory,
+     *         or null if directory creation fails
+     */
     private String initializeOutputDirectory() {
         try {
             String folderName = LocalDateTime.now().format(ApplicationConfig.FOLDER_DATE_FORMAT);
@@ -110,6 +149,13 @@ public class SystemInitialiser {
         }
     }
 
+    /**
+     * Creates and configures a SystmOneAutomator instance for the specified location.
+     * Applies location-specific pattern matching thresholds and configurations.
+     * 
+     * @param location The determined deployment location
+     * @return Configured SystmOneAutomator instance, or null if creation fails
+     */
     private SystmOneAutomator createAutomator(ApplicationConfig.Location location) {
         try {
             double similarity = (location == ApplicationConfig.Location.DENTON) ? 
@@ -123,6 +169,19 @@ public class SystemInitialiser {
         }
     }
 
+    /**
+     * Determines the deployment location by analyzing the application UI.
+     * Uses pattern matching to identify location-specific UI elements
+     * and selects the best match based on confidence scores.
+     * 
+     * The process involves:
+     * 1. Loading location-specific test patterns
+     * 2. Searching for matches in the application window
+     * 3. Analyzing match scores to determine the correct location
+     * 
+     * @return The detected ApplicationConfig.Location, or null if
+     *         location cannot be determined conclusively
+     */
     private ApplicationConfig.Location determineLocation() {
         try {
             logger.info("Starting location determination...");
