@@ -230,18 +230,18 @@ public class SystmOneAutomator {
     private void handleProductionPrintOperation(Match documentMatch, String savePath) throws FindFailed {
         final int MAX_PRINT_MENU_ATTEMPTS = 3;
         int attempts = 0;
-
+    
         while (attempts < MAX_PRINT_MENU_ATTEMPTS) {
             attempts++;
             logger.info("Print menu attempt {} of {}", attempts, MAX_PRINT_MENU_ATTEMPTS);
-
+    
             try {
                 // Ensure we're targeting the correct document
                 Match currentDocument = systmOneWindow.exists(selectionBorderPattern);
                 if (currentDocument == null) {
                     throw new FindFailed("Lost document selection during print operation");
                 }
-
+    
                 // Initialize print operation
                 if (!openPrintMenu(currentDocument)) {
                     logger.warn("Failed to open print menu - retrying");
@@ -265,15 +265,29 @@ public class SystmOneAutomator {
             } catch (FindFailed e) {
                 // Check for popup interruption
                 if (popupHandler.isPopupPresent()) {
-                    logger.info("Popup detected during print operation - handling");
-                    popupHandler.dismissPopup(false);  // Use ESC key
+                    logger.info("Popup detected during print operation - handling full cleanup sequence");
+                    
                     try {
+                        // First dismiss the popup that interrupted us
+                        popupHandler.dismissPopup(false);
                         Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        
+                        // Close the stuck print menu
+                        logger.info("Closing stuck print menu");
+                        systmOneWindow.type(Key.ESC);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        
+                        // Dismiss the "print failed" notification that appears
+                        logger.info("Dismissing print failed notification");
+                        systmOneWindow.type(Key.ESC);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        throw new FindFailed("Print operation interrupted");
+                        throw new FindFailed("Print operation interrupted during cleanup");
                     }
-                    continue;  // Retry the operation
+                    
+                    continue;  // Now we can restart the print operation from scratch
                 }
                 
                 // If this was our last attempt, propagate the error
