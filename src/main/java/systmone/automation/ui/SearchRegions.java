@@ -5,10 +5,9 @@ import org.sikuli.script.Region;
 import systmone.automation.config.RegionConstants;
 
 /**
- * Manages screen regions for UI element detection.
- * Calculates and provides access to specific regions where
- * the application should look for different UI elements,
- * improving performance and reliability of pattern matching.
+ * Creates and manages specific screen regions where the application expects
+ * to find UI elements. Each region is calculated based on the main window's
+ * dimensions and the proportional constants defined in RegionConstants.
  */
 public class SearchRegions {
     private final Region window;
@@ -18,7 +17,6 @@ public class SearchRegions {
 
     public SearchRegions(Region window) {
         this.window = window;
-        
         int windowWidth = window.w;
         int windowHeight = window.h;
         
@@ -29,30 +27,32 @@ public class SearchRegions {
 
     private Region createDocumentCountRegion(Region window, int width, int height) {
         return new Region(
-            window.x,
-            window.y + (int)(height * RegionConstants.BOTTOM_FIFTH),
-            (int)(width * RegionConstants.LEFT_FIFTH),
-            (int)(height * (1.0 - RegionConstants.BOTTOM_FIFTH))
+            window.x,  // Start from left edge
+            window.y + (int)(height * RegionConstants.DOCUMENT_COUNT_Y),
+            (int)(width * RegionConstants.DOCUMENT_COUNT_WIDTH),
+            (int)(height * (1.0 - RegionConstants.DOCUMENT_COUNT_Y))  // From Y position to bottom
         );
     }
 
     private Region createPrintMenuRegion(Region window, int width, int height) {
         return new Region(
-            window.x,
-            window.y + (int)(height * RegionConstants.BOTTOM_HALF),
-            (int)(width * RegionConstants.LEFT_THIRD),
-            (int)(height * (1.0 - RegionConstants.BOTTOM_HALF))
+            window.x,  // Start from left edge
+            window.y + (int)(height * RegionConstants.PRINT_MENU_Y),
+            (int)(width * RegionConstants.PRINT_MENU_WIDTH),
+            (int)(height * (1.0 - RegionConstants.PRINT_MENU_Y))  // From Y position to bottom
         );
     }
 
     private Region createSelectionBorderRegion(Region window, int width, int height) {
         return new Region(
-            window.x,
-            window.y + (int)(height * RegionConstants.LOWER_THREE_FIFTHS),
-            (int)(width * RegionConstants.LEFT_THIRD),
-            (int)(height * (1.0 - RegionConstants.LOWER_THREE_FIFTHS))
+            window.x,  // Start from left edge
+            window.y + (int)(height * RegionConstants.SELECTION_BORDER_Y),
+            (int)(width * RegionConstants.SELECTION_BORDER_WIDTH),
+            (int)(height * (1.0 - RegionConstants.SELECTION_BORDER_Y))  // From Y position to bottom
         );
     }
+
+    // Getters
 
     public Region getDocumentCountRegion() { return documentCountRegion; }
     public Region getPrintMenuRegion() { return printMenuRegion; }
