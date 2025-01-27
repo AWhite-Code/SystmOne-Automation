@@ -2,20 +2,27 @@
 package systmone.automation.config;
 
 /**
- * Defines constants for calculating UI search regions.
- * These values represent proportions of the total screen dimensions
- * and are used to restrict pattern matching to specific areas.
+ * Defines proportional constants for UI element search regions.
+ * These values represent where specific UI elements appear in the application window
+ * as proportions of the total screen dimensions (0.0 to 1.0).
+ * 
+ * For vertical positions (Y), values indicate distance from top of window.
+ * For horizontal positions (X), values indicate distance from left of window.
+ * For widths/heights, values indicate proportion of total dimension.
  */
 public final class RegionConstants {
     // Prevent instantiation of constants class
     private RegionConstants() {}
     
-    // Vertical divisions
-    public static final double BOTTOM_FIFTH = 0.8;    // Start of bottom 1/5th
-    public static final double BOTTOM_HALF = 0.5;     // Start of bottom half
-    public static final double LOWER_THREE_FIFTHS = 0.4; // Start of lower 3/5ths
-
-    // Horizontal divisions
-    public static final double LEFT_FIFTH = 0.2;      // Width of leftmost 1/5th
-    public static final double LEFT_THIRD = 0.33;     // Width of leftmost 1/3rd
+    // Document Count region constants
+    public static final double DOCUMENT_COUNT_Y = 0.8;      // Starts 80% down from top
+    public static final double DOCUMENT_COUNT_WIDTH = 0.2;  // Uses leftmost 20% of width
+    
+    // Print Menu region constants
+    public static final double PRINT_MENU_Y = 0.5;         // Starts halfway down screen
+    public static final double PRINT_MENU_WIDTH = 0.33;    // Uses leftmost third of width
+    
+    // Selection Border region constants
+    public static final double SELECTION_BORDER_Y = 0.4;    // Starts 40% down from top
+    public static final double SELECTION_BORDER_WIDTH = 0.33; // Uses leftmost third of width
 }
