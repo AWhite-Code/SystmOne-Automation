@@ -228,26 +228,109 @@ public class SystmOneAutomator {
      * @throws FindFailed if required UI elements cannot be found
      */
     private void handleProductionPrintOperation(Match documentMatch, String savePath) throws FindFailed {
-        // Start print operation
-        documentMatch.rightClick();
-        
-        // Wait for and click print menu item
-        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
-            ApplicationConfig.MENU_TIMEOUT);
-        printMenuItem.click();
-        
-        // Wait for save dialog
-        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
-        
-        // Perform save operations with proper keyboard modifiers
-        systmOneWindow.type("a", KeyModifier.CTRL);  // Select all existing text
-        systmOneWindow.type("v", KeyModifier.CTRL);  // Paste new path
-        systmOneWindow.type(Key.ENTER);                   // Confirm save
-        
-        // Wait for save dialog to close
-        systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
-        
-        logger.info("Saved document to: {}", savePath);
+        final int MAX_PRINT_MENU_ATTEMPTS = 3;
+        int attempts = 0;
+
+        while (attempts < MAX_PRINT_MENU_ATTEMPTS) {
+            attempts++;
+            logger.info("Print menu attempt {} of {}", attempts, MAX_PRINT_MENU_ATTEMPTS);
+
+            try {
+                // Ensure we're targeting the correct document
+                Match currentDocument = systmOneWindow.exists(selectionBorderPattern);
+                if (currentDocument == null) {
+                    throw new FindFailed("Lost document selection during print operation");
+                }
+
+                // Initialize print operation
+                if (!openPrintMenu(currentDocument)) {
+                    logger.warn("Failed to open print menu - retrying");
+                    continue;
+                }
+
+                // Wait for save dialog
+                systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+                
+                // Perform save operations with proper keyboard modifiers
+                systmOneWindow.type("a", KeyModifier.CTRL);  // Select all existing text
+                systmOneWindow.type("v", KeyModifier.CTRL);  // Paste new path
+                systmOneWindow.type(Key.ENTER);              // Confirm save
+                
+                // Wait for save dialog to close
+                systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
+                
+                logger.info("Saved document to: {}", savePath);
+                return;  // Success!
+
+            } catch (FindFailed e) {
+                // Check for popup interruption
+                if (popupHandler.isPopupPresent()) {
+                    logger.info("Popup detected during print operation - handling");
+                    popupHandler.dismissPopup(false);  // Use ESC key
+                    try {
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new FindFailed("Print operation interrupted");
+                    }
+                    continue;  // Retry the operation
+                }
+                
+                // If this was our last attempt, propagate the error
+                if (attempts >= MAX_PRINT_MENU_ATTEMPTS) {
+                    throw new FindFailed("Print menu operation failed after " + 
+                        MAX_PRINT_MENU_ATTEMPTS + " attempts: " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * Opens the print menu through right-click context menu interaction.
+     * Handles the complete sequence of right-click and print option selection.
+     * 
+     * @param documentMatch The matched document UI element
+     * @return true if print menu was successfully opened, false otherwise
+     * @throws FindFailed if required UI elements cannot be found
+     */
+    private boolean openPrintMenu(Match documentMatch) throws FindFailed {
+        try {
+            // Before right-click, verify no popup is present
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Clearing popup before print menu operation");
+                popupHandler.dismissPopup(false);
+                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+            }
+
+            // Perform right-click operation
+            documentMatch.rightClick();
+            Thread.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
+
+            // Check for popup immediately after right-click
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Popup appeared after right-click - handling");
+                popupHandler.dismissPopup(false);
+                return false;
+            }
+
+            // Wait for and click print menu item
+            Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
+                ApplicationConfig.MENU_TIMEOUT);
+            
+            // Final popup check before clicking
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Popup appeared before print menu selection - handling");
+                popupHandler.dismissPopup(false);
+                return false;
+            }
+
+            printMenuItem.click();
+            return true;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FindFailed("Print menu operation interrupted");
+        }
     }
 
 
