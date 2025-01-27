@@ -204,11 +204,10 @@ public class DocumentProcessor {
     private void saveDocument(Match documentMatch, String documentPath) 
             throws FindFailed, InterruptedException {
         int attempts = 0;
-        final int MAX_SAVE_ATTEMPTS = 3;
         
-        while (attempts < MAX_SAVE_ATTEMPTS) {
+        while (attempts < ApplicationConfig.MAX_SAVE_ATTEMPTS) {
             attempts++;
-            logger.info("Save attempt {} of {}", attempts, MAX_SAVE_ATTEMPTS);
+            logger.info("Save attempt {} of {}", attempts, ApplicationConfig.MAX_SAVE_ATTEMPTS);
 
             try {
                 // Ensure clipboard has the path
@@ -239,7 +238,7 @@ public class DocumentProcessor {
             }
         }
         
-        throw new FindFailed("Save operation failed after " + MAX_SAVE_ATTEMPTS + " attempts");
+        throw new FindFailed("Save operation failed after " + ApplicationConfig.MAX_SAVE_ATTEMPTS + " attempts");
     }
 
     /**
@@ -257,19 +256,17 @@ public class DocumentProcessor {
         logger.info("Navigation started at: {}", startTime);
         
         int attempts = 0;
-        final int MAX_NAVIGATION_ATTEMPTS = 3;
         
-        while (attempts < MAX_NAVIGATION_ATTEMPTS) {
+        while (attempts < ApplicationConfig.MAX_NAVIGATION_ATTEMPTS) {
             attempts++;
-            logger.info("Navigation attempt {} of {}", attempts, MAX_NAVIGATION_ATTEMPTS);
+            logger.info("Navigation attempt {} of {}", attempts, ApplicationConfig.MAX_NAVIGATION_ATTEMPTS);
             
             // Check for popup before attempting navigation
             PopupHandler popupHandler = automator.getPopupHandler();
-            logger.info("Checking for a popup");
             if (popupHandler.isPopupPresent()) {
                 logger.info("Popup detected before navigation - handling");
-                popupHandler.dismissPopup(false);  // Use ESC
-                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                popupHandler.dismissPopup(false);
+                Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
                 continue;  // Retry navigation attempt
             }
     
@@ -279,11 +276,10 @@ public class DocumentProcessor {
                     performBasicNavigation();
                     return;  // Success!
                 } catch (FindFailed e) {
-                    // Check for popup after failed basic navigation
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected after basic navigation failure - handling");
                         popupHandler.dismissPopup(false);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
                         continue;  // Retry navigation
                     }
                     throw e;  // Rethrow if no popup found
@@ -300,7 +296,7 @@ public class DocumentProcessor {
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected during fallback navigation - handling");
                         popupHandler.dismissPopup(false);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
                         continue;  // Retry navigation
                     }
                     throw e;
@@ -308,39 +304,38 @@ public class DocumentProcessor {
             }
     
             int verificationAttempts = 0;
-            final int MAX_VERIFICATION_ATTEMPTS = 3;
             
-            while (verificationAttempts < MAX_VERIFICATION_ATTEMPTS) {
+            while (verificationAttempts < ApplicationConfig.MAX_VERIFICATION_ATTEMPTS) {
                 verificationAttempts++;
-                logger.info("Navigation verification attempt {} of {}", verificationAttempts, MAX_VERIFICATION_ATTEMPTS);
+                logger.info("Navigation verification attempt {} of {}", 
+                    verificationAttempts, ApplicationConfig.MAX_VERIFICATION_ATTEMPTS);
                 
-                // First, try the navigation
+                // Attempt navigation
                 automator.navigateDown();
             
-                // Now we check if it worked
-                if (uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
+                // Verify success
+                if (uiHandler.verifyDocumentLoaded(ApplicationConfig.NAVIGATION_VERIFY_TIMEOUT)) {
                     logger.info("Navigation successful on verification attempt {}", verificationAttempts);
-                    return;  // Success! We can move on
+                    return;  // Success!
                 }
             
-                // If we're here, the verification failed. Let's check for a popup
+                // Check for popup if verification failed
                 if (popupHandler.isPopupPresent()) {
-                    logger.info("Popup detected during verification attempt {} - handling and retrying", verificationAttempts);
+                    logger.info("Popup detected during verification - handling and retrying");
                     popupHandler.dismissPopup(false);
-                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                    // Don't increment verificationAttempts if we found a popup - this attempt was interrupted
-                    verificationAttempts--;
-                    continue;  // Try again
+                    Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
+                    verificationAttempts--;  // Don't count popup interruptions
+                    continue;
                 }
             
-                // If we get here, verification failed without a popup
-                logger.warn("Navigation verification failed on attempt {} without popup - retrying", verificationAttempts);
-                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);  // Brief pause before retry
+                // If verification failed without popup, brief pause before retry
+                logger.warn("Navigation verification failed without popup - retrying");
+                Thread.sleep(ApplicationConfig.VERIFICATION_DELAY_MS);
             }
             
-            // If we've exhausted all attempts without success
-            throw new FindFailed("Navigation verification failed after " + MAX_VERIFICATION_ATTEMPTS + 
-                " attempts without popup interference");
+            // If we've exhausted all verification attempts
+            throw new FindFailed("Navigation verification failed after " + 
+                ApplicationConfig.MAX_VERIFICATION_ATTEMPTS + " attempts without popup interference");
         }
     }
     

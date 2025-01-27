@@ -228,12 +228,11 @@ public class SystmOneAutomator {
      * @throws FindFailed if required UI elements cannot be found
      */
     private void handleProductionPrintOperation(Match documentMatch, String savePath) throws FindFailed {
-        final int MAX_PRINT_MENU_ATTEMPTS = 3;
         int attempts = 0;
     
-        while (attempts < MAX_PRINT_MENU_ATTEMPTS) {
+        while (attempts < ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS) {
             attempts++;
-            logger.info("Print menu attempt {} of {}", attempts, MAX_PRINT_MENU_ATTEMPTS);
+            logger.info("Print menu attempt {} of {}", attempts, ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS);
     
             try {
                 // Ensure we're targeting the correct document
@@ -270,17 +269,17 @@ public class SystmOneAutomator {
                     try {
                         // First dismiss the popup that interrupted us
                         popupHandler.dismissPopup(false);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
                         
                         // Close the stuck print menu
                         logger.info("Closing stuck print menu");
                         systmOneWindow.type(Key.ESC);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        Thread.sleep(ApplicationConfig.MENU_CLEANUP_DELAY_MS);
                         
                         // Dismiss the "print failed" notification that appears
                         logger.info("Dismissing print failed notification");
                         systmOneWindow.type(Key.ESC);
-                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        Thread.sleep(ApplicationConfig.POST_CLEANUP_DELAY_MS);
                         
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
@@ -291,9 +290,9 @@ public class SystmOneAutomator {
                 }
                 
                 // If this was our last attempt, propagate the error
-                if (attempts >= MAX_PRINT_MENU_ATTEMPTS) {
+                if (attempts >= ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS) {
                     throw new FindFailed("Print menu operation failed after " + 
-                        MAX_PRINT_MENU_ATTEMPTS + " attempts: " + e.getMessage());
+                        ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS + " attempts: " + e.getMessage());
                 }
             }
         }

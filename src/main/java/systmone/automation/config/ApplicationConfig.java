@@ -23,12 +23,28 @@ public class ApplicationConfig {
     // Timing configurations
     public static final int FOCUS_DELAY_MS = 1000;
     public static final int NAVIGATION_DELAY_MS = 100;
+    public static final int VERIFICATION_DELAY_MS = 100;      // Delay between verification attempts
     public static final int CONTEXT_MENU_DELAY_MS = 500;
     public static final int PRINT_DIALOG_DELAY_MS = 2000;
     public static final int SAVE_DIALOG_DELAY_MS = 3000;
     public static final double DIALOG_TIMEOUT = 10.0; // in seconds
     public static final double MENU_TIMEOUT = 5.0;    // in seconds
+
+    // Operation retry limits
+    public static final int MAX_PRINT_MENU_ATTEMPTS = 3;     // Maximum attempts for print menu operation
+    public static final int MAX_SAVE_ATTEMPTS = 3;           // Maximum attempts for save operation
+    public static final int MAX_NAVIGATION_ATTEMPTS = 3;     // Maximum attempts for navigation
+    public static final int MAX_VERIFICATION_ATTEMPTS = 3;    // Maximum attempts to verify document loaded
     
+    // Popup handling delays
+    public static final int POPUP_CLEANUP_DELAY_MS = 200;    // Delay after dismissing popup
+    public static final int MENU_CLEANUP_DELAY_MS = 300;     // Delay after closing stuck menu
+    public static final int POST_CLEANUP_DELAY_MS = 500;     // Delay after full cleanup sequence
+
+    // Navigation timing configurations
+    public static final int NAVIGATION_VERIFY_TIMEOUT = 5;    // Timeout for navigation verification (seconds)
+    public static final int SCROLLBAR_INIT_TIMEOUT = 3;       // Timeout for initializing scrollbar tracking
+
     // Pattern matching settings
     public static final double DENTON_SIMILARITY = 0.8;
     public static final double WOOTTON_SIMILARITY = 0.8;
