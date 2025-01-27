@@ -254,31 +254,94 @@ public class DocumentProcessor {
      */
     private void handleNavigation() throws FindFailed, InterruptedException {
         long startTime = System.currentTimeMillis();
+        logger.info("Navigation started at: {}", startTime);
         
-        if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
-            logger.info("Navigation started (basic mode) at: {}", startTime);
-            performBasicNavigation();
-            return;
-        }
+        int attempts = 0;
+        final int MAX_NAVIGATION_ATTEMPTS = 3;
+        
+        while (attempts < MAX_NAVIGATION_ATTEMPTS) {
+            attempts++;
+            logger.info("Navigation attempt {} of {}", attempts, MAX_NAVIGATION_ATTEMPTS);
+            
+            // Check for popup before attempting navigation
+            PopupHandler popupHandler = automator.getPopupHandler();
+            logger.info("Checking for a popup");
+            if (popupHandler.isPopupPresent()) {
+                logger.info("Popup detected before navigation - handling");
+                popupHandler.dismissPopup(false);  // Use ESC
+                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                continue;  // Retry navigation attempt
+            }
     
-        logger.info("Navigation started (scrollbar mode) at: {}", startTime);
-        
-        if (!uiHandler.startDocumentTracking()) {
-            logger.warn("Scrollbar tracking failed after {} ms", System.currentTimeMillis() - startTime);
-            performBasicNavigation();
-            return;
-        }
+            // Determine navigation mode
+            if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
+                try {
+                    performBasicNavigation();
+                    return;  // Success!
+                } catch (FindFailed e) {
+                    // Check for popup after failed basic navigation
+                    if (popupHandler.isPopupPresent()) {
+                        logger.info("Popup detected after basic navigation failure - handling");
+                        popupHandler.dismissPopup(false);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        continue;  // Retry navigation
+                    }
+                    throw e;  // Rethrow if no popup found
+                }
+            }
     
-        logger.info("Tracking started, sending DOWN key at: {}", System.currentTimeMillis());
-        automator.navigateDown();
-        logger.info("DOWN key sent at: {}", System.currentTimeMillis());
-        
-        if (!uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
-            throw new FindFailed("Failed to verify document loaded after navigation");
+            // Scrollbar tracking mode
+            if (!uiHandler.startDocumentTracking()) {
+                logger.warn("Scrollbar tracking failed - falling back to basic navigation");
+                try {
+                    performBasicNavigation();
+                    return;  // Success!
+                } catch (FindFailed e) {
+                    if (popupHandler.isPopupPresent()) {
+                        logger.info("Popup detected during fallback navigation - handling");
+                        popupHandler.dismissPopup(false);
+                        Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                        continue;  // Retry navigation
+                    }
+                    throw e;
+                }
+            }
+    
+            int verificationAttempts = 0;
+            final int MAX_VERIFICATION_ATTEMPTS = 3;
+            
+            while (verificationAttempts < MAX_VERIFICATION_ATTEMPTS) {
+                verificationAttempts++;
+                logger.info("Navigation verification attempt {} of {}", verificationAttempts, MAX_VERIFICATION_ATTEMPTS);
+                
+                // First, try the navigation
+                automator.navigateDown();
+            
+                // Now we check if it worked
+                if (uiHandler.verifyDocumentLoaded(ApplicationConfig.DIALOG_TIMEOUT)) {
+                    logger.info("Navigation successful on verification attempt {}", verificationAttempts);
+                    return;  // Success! We can move on
+                }
+            
+                // If we're here, the verification failed. Let's check for a popup
+                if (popupHandler.isPopupPresent()) {
+                    logger.info("Popup detected during verification attempt {} - handling and retrying", verificationAttempts);
+                    popupHandler.dismissPopup(false);
+                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    // Don't increment verificationAttempts if we found a popup - this attempt was interrupted
+                    verificationAttempts--;
+                    continue;  // Try again
+                }
+            
+                // If we get here, verification failed without a popup
+                logger.warn("Navigation verification failed on attempt {} without popup - retrying", verificationAttempts);
+                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);  // Brief pause before retry
+            }
+            
+            // If we've exhausted all attempts without success
+            throw new FindFailed("Navigation verification failed after " + MAX_VERIFICATION_ATTEMPTS + 
+                " attempts without popup interference");
         }
-        
-        logger.info("Navigation completed at: {}, total time: {} ms", 
-            System.currentTimeMillis(), System.currentTimeMillis() - startTime);
     }
     
     /**
