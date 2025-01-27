@@ -37,6 +37,7 @@ public class SystmOneAutomator {
     private final Region systmOneWindow;
     private final ApplicationConfig.Location location;
     private final PopupHandler popupHandler;
+    private final SearchRegions searchRegions;
 
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
@@ -56,10 +57,16 @@ public class SystmOneAutomator {
         this.location = location;
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
+        
+        // Initialize search regions before patterns
+        this.searchRegions = new SearchRegions(systmOneWindow);
+        
+        // Initialize patterns with location-specific names (we'll remove this later)
         this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
         this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
         this.documentCountPattern = initializePattern("document_count", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
+        
         this.popupHandler = new PopupHandler(systmOneWindow);
         
         if (systmOneWindow == null) {
@@ -112,19 +119,22 @@ public class SystmOneAutomator {
      */
     public int getDocumentCount() {
         try {
-            Match countMatch = systmOneWindow.exists(documentCountPattern);
+            // Search for document count only in the designated bottom-left region
+            Match countMatch = searchRegions.getDocumentCountRegion().exists(documentCountPattern);
             if (countMatch == null) {
-                logger.error("Document count pattern not found");
+                logger.error("Document count pattern not found in expected region");
                 return -1;
             }
-
+    
+            // Create a text capture region around the match
+            // Note: We keep the expanded region for text capture to ensure we get the full number
             Region textRegion = new Region(
                 countMatch.x - 50,
                 countMatch.y,
                 150,
                 countMatch.h
             );
-
+    
             String countText = textRegion.text();
             return extractNumberFromText(countText);
             
@@ -235,48 +245,45 @@ public class SystmOneAutomator {
             logger.info("Print menu attempt {} of {}", attempts, ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS);
     
             try {
-                // Ensure we're targeting the correct document
-                Match currentDocument = systmOneWindow.exists(selectionBorderPattern);
+                // Use selection border region to verify document selection
+                Match currentDocument = searchRegions.getSelectionBorderRegion().exists(selectionBorderPattern);
                 if (currentDocument == null) {
                     throw new FindFailed("Lost document selection during print operation");
                 }
     
-                // Initialize print operation
+                // Initialize print operation using our region-aware openPrintMenu
                 if (!openPrintMenu(currentDocument)) {
                     logger.warn("Failed to open print menu - retrying");
                     continue;
                 }
-
-                // Wait for save dialog
+    
+                // For save dialog, we still use full window since it can appear anywhere
                 systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
                 
-                // Perform save operations with proper keyboard modifiers
-                systmOneWindow.type("a", KeyModifier.CTRL);  // Select all existing text
-                systmOneWindow.type("v", KeyModifier.CTRL);  // Paste new path
-                systmOneWindow.type(Key.ENTER);              // Confirm save
+                // Perform save operations (unchanged as these are keyboard operations)
+                systmOneWindow.type("a", KeyModifier.CTRL);
+                systmOneWindow.type("v", KeyModifier.CTRL);
+                systmOneWindow.type(Key.ENTER);
                 
-                // Wait for save dialog to close
+                // Wait for save dialog to close (still using full window)
                 systmOneWindow.waitVanish(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
                 
                 logger.info("Saved document to: {}", savePath);
                 return;  // Success!
-
+    
             } catch (FindFailed e) {
-                // Check for popup interruption
+                // Popup handling remains unchanged as it's managed by PopupHandler
                 if (popupHandler.isPopupPresent()) {
                     logger.info("Popup detected during print operation - handling full cleanup sequence");
                     
                     try {
-                        // First dismiss the popup that interrupted us
                         popupHandler.dismissPopup(false);
                         Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
                         
-                        // Close the stuck print menu
                         logger.info("Closing stuck print menu");
                         systmOneWindow.type(Key.ESC);
                         Thread.sleep(ApplicationConfig.MENU_CLEANUP_DELAY_MS);
                         
-                        // Dismiss the "print failed" notification that appears
                         logger.info("Dismissing print failed notification");
                         systmOneWindow.type(Key.ESC);
                         Thread.sleep(ApplicationConfig.POST_CLEANUP_DELAY_MS);
@@ -286,10 +293,9 @@ public class SystmOneAutomator {
                         throw new FindFailed("Print operation interrupted during cleanup");
                     }
                     
-                    continue;  // Now we can restart the print operation from scratch
+                    continue;
                 }
                 
-                // If this was our last attempt, propagate the error
                 if (attempts >= ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS) {
                     throw new FindFailed("Print menu operation failed after " + 
                         ApplicationConfig.MAX_PRINT_MENU_ATTEMPTS + " attempts: " + e.getMessage());
@@ -308,27 +314,29 @@ public class SystmOneAutomator {
      */
     private boolean openPrintMenu(Match documentMatch) throws FindFailed {
         try {
-            // Before right-click, verify no popup is present
+            // Check for and clear any existing popups
             if (popupHandler.isPopupPresent()) {
                 logger.info("Clearing popup before print menu operation");
                 popupHandler.dismissPopup(false);
                 Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             }
-
-            // Perform right-click operation
+    
+            // Right-click the document to open context menu
             documentMatch.rightClick();
             Thread.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
-
-            // Check for popup immediately after right-click
+    
+            // Check for popup after right-click
             if (popupHandler.isPopupPresent()) {
                 logger.info("Popup appeared after right-click - handling");
                 popupHandler.dismissPopup(false);
                 return false;
             }
-
-            // Wait for and click print menu item
-            Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
-                ApplicationConfig.MENU_TIMEOUT);
+    
+            // Look for print menu item only in the designated region
+            Match printMenuItem = searchRegions.getPrintMenuRegion().wait(
+                printMenuItemPattern, 
+                ApplicationConfig.MENU_TIMEOUT
+            );
             
             // Final popup check before clicking
             if (popupHandler.isPopupPresent()) {
@@ -336,10 +344,10 @@ public class SystmOneAutomator {
                 popupHandler.dismissPopup(false);
                 return false;
             }
-
+    
             printMenuItem.click();
             return true;
-
+    
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new FindFailed("Print menu operation interrupted");
@@ -362,7 +370,7 @@ public class SystmOneAutomator {
      * @throws FindFailed if the element is not found within timeout
      */
     public Match waitForStableElement(int timeout) throws FindFailed {
-        return systmOneWindow.wait(selectionBorderPattern, timeout);
+        return searchRegions.getSelectionBorderRegion().wait(selectionBorderPattern, timeout);
     }
 
     // Getter methods
