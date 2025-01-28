@@ -9,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 
-import com.sun.jna.platform.win32.Advapi32Util;
-import com.sun.jna.platform.win32.WinReg;
 
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
@@ -51,10 +49,6 @@ public class SystemInitialiser {
      */
     public InitialisationResult initialise() {
         try {
-            // Test printer setting first
-            if (!setPDFAsDefaultPrinterWinAPI()) {
-                logger.warn("Could not set PDF printer as default - manual setup may be required");
-            }
             // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
                 return InitialisationResult.failed("Image library initialization failed");
@@ -91,29 +85,6 @@ public class SystemInitialiser {
     
         } catch (Exception e) {
             return InitialisationResult.failed("Unexpected error during initialization: " + e.getMessage());
-        }
-    }
-
-    private boolean setPDFAsDefaultPrinterWinAPI() {
-        try {
-            // Path to Windows default printer setting in registry
-            String registryPath = "Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows";
-            String valueName = "Device";
-            String printerValue = "Microsoft Print to PDF,winspool,Ne00:"; // Standard format for printer device
-    
-            // Write to user's registry
-            Advapi32Util.registrySetStringValue(
-                WinReg.HKEY_CURRENT_USER,
-                registryPath,
-                valueName,
-                printerValue
-            );
-    
-            logger.info("Successfully set Microsoft Print to PDF as default printer via registry");
-            return true;
-        } catch (Exception e) {
-            logger.error("Error setting default printer: " + e.getMessage(), e);
-            return false;
         }
     }
 
