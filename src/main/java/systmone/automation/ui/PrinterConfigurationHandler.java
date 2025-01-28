@@ -6,6 +6,7 @@ import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
+import java.util.Iterator;
 
 /**
  * Handles the configuration of the PDF printer in SystmOne.
@@ -83,15 +84,39 @@ public class PrinterConfigurationHandler {
                 ApplicationConfig.DIALOG_TIMEOUT);
             printerSettings.click();
     
-            // Step 5: Focus and handle the printer settings dialog
+            // Step 5: Find the dropdown arrow in printer settings dialog
             App printerSettingsWindow = focusWindow("Actioned Scanned Image Printer Settings");
             Region printerSettingsWindowRegion = printerSettingsWindow.window();
-    
-            Pattern printerDropdownPattern = new Pattern("printer_dropdown.png")
+
+            // Create a region for the middle third of the window
+            Region middleRegion = new Region(
+                printerSettingsWindowRegion.x + (printerSettingsWindowRegion.w / 3),  // Start 1/3 in
+                printerSettingsWindowRegion.y,                                        // Start at top
+                printerSettingsWindowRegion.w,                                   // Middle third width
+                printerSettingsWindowRegion.h                                        // Full height
+            );
+
+            // Look for all instances of the dropdown arrow
+            Pattern dropdownArrowPattern = new Pattern("dropdown_arrow.png")
                 .similar(ApplicationConfig.DEFAULT_SIMILARITY);
-            Match printerDropdown = printerSettingsWindowRegion.wait(printerDropdownPattern, 
-                ApplicationConfig.DIALOG_TIMEOUT);
-            printerDropdown.click();
+
+            Iterator<Match> matches = middleRegion.findAll(dropdownArrowPattern);
+            Match topmostDropdown = null;
+            int highestY = Integer.MAX_VALUE;
+
+            while(matches.hasNext()) {
+                Match match = matches.next();
+                if (match.y < highestY) {
+                    highestY = match.y;
+                    topmostDropdown = match;
+                }
+            }
+
+            if (topmostDropdown == null) {
+                throw new FindFailed("Could not find dropdown arrow");
+            }
+
+            topmostDropdown.click();
     
             // Type out full printer name to avoid ambiguity
             printerSettingsWindowRegion.type("Microsoft Print to PDF");

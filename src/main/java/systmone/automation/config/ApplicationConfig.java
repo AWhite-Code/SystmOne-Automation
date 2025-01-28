@@ -9,6 +9,7 @@ public class ApplicationConfig {
     public static final String IMAGE_DIR_PATH = "src/main/resources/images";
     public static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output";
     public static final boolean TEST_MODE = false; // Dev Flag for testing
+    public static final boolean AUTO_CONFIGURE_PDF_PRINTER = true; 
     
     // Date formatting
     public static final DateTimeFormatter FOLDER_DATE_FORMAT = 

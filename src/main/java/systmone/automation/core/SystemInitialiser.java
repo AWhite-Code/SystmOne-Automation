@@ -53,18 +53,32 @@ public class SystemInitialiser {
             if (!initializeImageLibrary()) {
                 return InitialisationResult.failed("Image library initialization failed");
             }
-    
+       
             // Create automator with standard configuration
             SystmOneAutomator automator = createAutomator();
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
-    
+       
             // Ensure proper application window state
             try {
                 automator.focus();
             } catch (InterruptedException e) {
                 return InitialisationResult.failed("Failed to focus SystmOne window: " + e.getMessage());
+            }
+       
+            // Configure printer if enabled
+            // TODO: Make this configurable via settings file
+            if (ApplicationConfig.AUTO_CONFIGURE_PDF_PRINTER) {  // Add this setting to ApplicationConfig
+                try {
+                    if (!automator.configurePDFPrinter()) {
+                        logger.warn("Failed to configure PDF printer - manual setup may be required");
+                        // Continue anyway as this isn't critical
+                    }
+                } catch (FindFailed e) {
+                    logger.warn("Failed to configure PDF printer: " + e.getMessage());
+                    // Continue with initialization even if printer config fails
+                }
             }
     
             // Establish document storage structure
@@ -72,17 +86,17 @@ public class SystemInitialiser {
             if (outputFolder == null) {
                 return InitialisationResult.failed("Failed to create output directory");
             }
-    
+       
             // Initialize core system component container
             SystemComponents components = new SystemComponents(automator, outputFolder);
-            
+               
             // Verify all required components are properly initialized
             if (components.getUiHandler() == null || components.getPopupHandler() == null) {
                 return InitialisationResult.failed("Failed to initialize all required components");
             }
-    
+       
             return InitialisationResult.succeeded(components);
-    
+       
         } catch (Exception e) {
             return InitialisationResult.failed("Unexpected error during initialization: " + e.getMessage());
         }

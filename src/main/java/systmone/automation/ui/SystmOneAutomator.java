@@ -37,6 +37,7 @@ public class SystmOneAutomator {
     private final Region systmOneWindow;
     private final PopupHandler popupHandler;
     private final SearchRegions searchRegions;
+    private final PrinterConfigurationHandler printerConfigHandler;  // Add this field
 
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
@@ -50,18 +51,28 @@ public class SystmOneAutomator {
      * @param similarity The similarity threshold for pattern matching
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
-    public SystmOneAutomator(double similarity) throws FindFailed {
+    public SystmOneAutomator(double patternSimilarity) throws FindFailed {
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
+        
+        // Initialize search regions before patterns
         this.searchRegions = new SearchRegions(systmOneWindow);
         
-        // Initialize patterns with standard names
-        this.selectionBorderPattern = initializePattern("selection_border", similarity);
-        this.printMenuItemPattern = initializePattern("print_menu_item", similarity);
-        this.documentCountPattern = initializePattern("document_count", similarity);
-        this.saveDialogPattern = initializePattern("save_dialog_title", similarity);
+        // Initialize patterns with location-specific names
+        this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
+        this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
+        this.documentCountPattern = initializePattern("document_count", patternSimilarity);
+        this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
+        
+        // Initialize printer configuration handler
+        this.printerConfigHandler = new PrinterConfigurationHandler(
+            systmOne,
+            systmOneWindow,
+            searchRegions,
+            selectionBorderPattern
+        );
         
         if (systmOneWindow == null) {
             throw new FindFailed("Failed to initialize SystmOne window");
@@ -365,6 +376,10 @@ public class SystmOneAutomator {
      */
     public Match waitForStableElement(int timeout) throws FindFailed {
         return searchRegions.getSelectionBorderRegion().wait(selectionBorderPattern, timeout);
+    }
+
+    public boolean configurePDFPrinter() throws FindFailed {
+        return printerConfigHandler.configurePDFPrinter();
     }
 
     // Getter methods
