@@ -53,14 +53,8 @@ public class SystemInitialiser {
                 return InitialisationResult.failed("Image library initialization failed");
             }
     
-            // Analyze UI patterns to identify deployment environment
-            ApplicationConfig.Location location = determineLocation();
-            if (location == null) {
-                return InitialisationResult.failed("Location determination failed");
-            }
-    
-            // Create automator with location-specific configuration
-            SystmOneAutomator automator = createAutomator(location);
+            // Create automator with standard configuration
+            SystmOneAutomator automator = createAutomator();
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
@@ -149,71 +143,18 @@ public class SystemInitialiser {
         }
     }
 
-    /**
-     * Creates and configures a SystmOneAutomator instance for the specified location.
-     * Applies location-specific pattern matching thresholds and configurations.
-     * 
-     * @param location The determined deployment location
-     * @return Configured SystmOneAutomator instance, or null if creation fails
-     */
-    private SystmOneAutomator createAutomator(ApplicationConfig.Location location) {
-        try {
-            double similarity = (location == ApplicationConfig.Location.DENTON) ? 
-                ApplicationConfig.DENTON_SIMILARITY : ApplicationConfig.WOOTTON_SIMILARITY;
-                
-            return new SystmOneAutomator(location, similarity);
-            
-        } catch (FindFailed e) {
-            logger.error("Failed to create automator: " + e.getMessage());
-            return null;
-        }
-    }
 
     /**
-     * Determines the deployment location by analyzing the application UI.
-     * Uses pattern matching to identify location-specific UI elements
-     * and selects the best match based on confidence scores.
+     * Creates and configures a SystmOneAutomator instance.
+     * Uses a standard similarity threshold for all pattern matching.
      * 
-     * The process involves:
-     * 1. Loading location-specific test patterns
-     * 2. Searching for matches in the application window
-     * 3. Analyzing match scores to determine the correct location
-     * 
-     * @return The detected ApplicationConfig.Location, or null if
-     *         location cannot be determined conclusively
+     * @return Configured SystmOneAutomator instance, or null if creation fails
      */
-    private ApplicationConfig.Location determineLocation() {
+    private SystmOneAutomator createAutomator() {
         try {
-            logger.info("Starting location determination...");
-            
-            Pattern dentonTest = new Pattern("selection_border_denton.png")
-                .similar(ApplicationConfig.LOCATION_SIMILARITY);
-            Pattern woottonTest = new Pattern("selection_border_wootton.png")
-                .similar(ApplicationConfig.LOCATION_SIMILARITY);
-            
-            Region window = new App(ApplicationConfig.APP_TITLE).window();
-            if (window == null) {
-                logger.error("Could not find application window");
-                return null;
-            }
-            
-            Match dentonMatch = window.exists(dentonTest);
-            Match woottonMatch = window.exists(woottonTest);
-            
-            if (dentonMatch != null && woottonMatch != null) {
-                return dentonMatch.getScore() > woottonMatch.getScore() ?
-                    ApplicationConfig.Location.DENTON : ApplicationConfig.Location.WOOTTON;
-            } else if (dentonMatch != null) {
-                return ApplicationConfig.Location.DENTON;
-            } else if (woottonMatch != null) {
-                return ApplicationConfig.Location.WOOTTON;
-            }
-            
-            logger.error("No matches found for either location");
-            return null;
-                
-        } catch (Exception e) {
-            logger.error("Error in determineLocation: " + e.getMessage(), e);
+            return new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY);
+        } catch (FindFailed e) {
+            logger.error("Failed to create automator: " + e.getMessage());
             return null;
         }
     }

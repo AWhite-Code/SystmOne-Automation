@@ -14,11 +14,8 @@ public class ApplicationConfig {
     public static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
     
-    // Location-specific settings
-    public enum Location {
-        DENTON,
-        WOOTTON
-    }
+    // Pattern matching configuration
+    public static final double DEFAULT_SIMILARITY = 0.8;  // Adjust this value based on testing
     
     // Timing configurations
     public static final int FOCUS_DELAY_MS = 1000;
