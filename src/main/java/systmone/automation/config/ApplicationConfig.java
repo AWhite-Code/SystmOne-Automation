@@ -1,16 +1,24 @@
 package systmone.automation.config;
 
 import java.awt.Color;
+import java.io.File;
+import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 
 public class ApplicationConfig {
     // Application constants
     public static final String APP_TITLE = "SystmOne GP:";
     public static final String IMAGE_DIR_PATH = "src/main/resources/images";
-    public static final String OUTPUT_BASE_PATH = "C:\\Users\\Alexwh\\Dev Environs\\SystmOne_Automation_Output";
     public static final boolean TEST_MODE = false; // Dev Flag for testing
     public static final boolean AUTO_CONFIGURE_PDF_PRINTER = true; 
-    
+
+        // Path configuration
+    private static final String PROJECT_ROOT = System.getProperty("user.dir");  // Gets the current working directory
+    private static final String PARENT_DIR = new File(PROJECT_ROOT).getParent();  // Gets parent of current directory
+    // TODO: Make output path configurable via settings file
+    // Current default: Creates 'SystmOne_Automation_Output' in parent directory of project root
+    public static final String OUTPUT_BASE_PATH = Paths.get(PARENT_DIR, "SystmOne_Automation_Output").toString();
+
     // Date formatting
     public static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");

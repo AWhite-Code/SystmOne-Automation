@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 
@@ -146,11 +147,14 @@ public class SystemInitialiser {
     private String initializeOutputDirectory() {
         try {
             String folderName = LocalDateTime.now().format(ApplicationConfig.FOLDER_DATE_FORMAT);
-            String outputFolder = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName).toString();
+            Path outputPath = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName);
+            Path absolutePath = outputPath.toAbsolutePath().normalize();
             
-            Files.createDirectories(Paths.get(outputFolder));
-            logger.info("Created output directory: {}", outputFolder);
-            return outputFolder;
+            // Create all necessary directories
+            Files.createDirectories(absolutePath);
+            
+            logger.info("Created output directory: {}", absolutePath);
+            return absolutePath.toString();
             
         } catch (Exception e) {
             logger.error("Failed to create output directory: " + e.getMessage());
