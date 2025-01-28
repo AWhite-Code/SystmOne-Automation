@@ -14,9 +14,6 @@ public class ApplicationConfig {
     public static final DateTimeFormatter FOLDER_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("dd-MM-yyyy - HH-mm-ss");
     
-    // Pattern matching configuration
-    public static final double DEFAULT_SIMILARITY = 0.8;  // Adjust this value based on testing
-    
     // Timing configurations
     public static final int FOCUS_DELAY_MS = 1000;
     public static final int NAVIGATION_DELAY_MS = 100;
@@ -41,11 +38,6 @@ public class ApplicationConfig {
     // Navigation timing configurations
     public static final int NAVIGATION_VERIFY_TIMEOUT = 5;    // Timeout for navigation verification (seconds)
     public static final int SCROLLBAR_INIT_TIMEOUT = 3;       // Timeout for initializing scrollbar tracking
-
-    // Pattern matching settings
-    public static final double DENTON_SIMILARITY = 0.8;
-    public static final double WOOTTON_SIMILARITY = 0.8;
-    public static final double LOCATION_SIMILARITY = 0.7;
     
     // UI State Handler configurations
     public static final int REQUIRED_STABILITY_COUNT = 2;
@@ -73,6 +65,7 @@ public class ApplicationConfig {
     public static final int POPUP_POSITION_TOLERANCE = 150;  // pixels
     public static final int POPUP_DISMISS_DELAY_MS = 500;   // milliseconds
     public static final int MAX_POPUP_HANDLES = 3;  // Limit popup retry attempts
+    public static final double DEFAULT_SIMILARITY = 0.8;  // Adjust this value based on testing
 
     // Debug
     public static final boolean DEBUG_SCREENSHOTS = true;

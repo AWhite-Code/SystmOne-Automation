@@ -19,10 +19,10 @@ public final class RegionConstants {
     public static final double DOCUMENT_COUNT_WIDTH = 0.2;  // Uses leftmost 20% of width
     
     // Print Menu region constants
-    public static final double PRINT_MENU_Y = 0.5;         // Starts halfway down screen
+    public static final double PRINT_MENU_Y = 0.25;         // Starts halfway down screen
     public static final double PRINT_MENU_WIDTH = 0.33;    // Uses leftmost third of width
     
     // Selection Border region constants
-    public static final double SELECTION_BORDER_Y = 0.4;    // Starts 40% down from top
+    public static final double SELECTION_BORDER_Y = 0.15;    // Starts 15% down from top
     public static final double SELECTION_BORDER_WIDTH = 0.33; // Uses leftmost third of width
 }
