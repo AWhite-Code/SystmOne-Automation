@@ -1,9 +1,12 @@
 Python program similar to PDF arranger for splitting of docs
 
-Change output path to be within hierarchy.
-
 Solve the "1 doc vs 100 docs" problem.
+Redo max documents code to be tied to scrollbar? maybe? Probably not replace but use scrollbar as verification for finish
 
 Validate that the print option will print to PDF.
+Change output path to be within hierarchy.
 
-Redo max documents code to be tied to scrollbar? maybe? Probably not replace but use scrollbar as verification for finish
+Log output file
+Clean up logging to be more sensible
+
+Remove all Dev Environ calls.
