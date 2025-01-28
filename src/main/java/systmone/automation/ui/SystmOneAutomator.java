@@ -7,6 +7,7 @@ import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.ui.SearchRegions;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.
@@ -35,8 +36,8 @@ public class SystmOneAutomator {
     // Core application components
     private final App systmOne;
     private final Region systmOneWindow;
-    private final ApplicationConfig.Location location;
     private final PopupHandler popupHandler;
+    private final SearchRegions searchRegions;
 
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
@@ -45,21 +46,22 @@ public class SystmOneAutomator {
     private final Pattern saveDialogPattern;
 
     /**
-     * Creates a new SystmOne automation controller with location-specific patterns.
-     * Initializes all required patterns and validates the application window state.
+     * Creates a new SystmOne automation controller with standardized patterns.
      * 
-     * @param location The deployment location for pattern configuration
-     * @param patternSimilarity The similarity threshold for pattern matching
+     * @param similarity The similarity threshold for pattern matching
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
-    public SystmOneAutomator(ApplicationConfig.Location location, double patternSimilarity) throws FindFailed {
-        this.location = location;
+    public SystmOneAutomator(double similarity) throws FindFailed {
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
-        this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
-        this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
-        this.documentCountPattern = initializePattern("document_count", patternSimilarity);
-        this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
+        this.searchRegions = new SearchRegions(systmOneWindow);
+        
+        // Initialize patterns with standard names
+        this.selectionBorderPattern = initializePattern("selection_border", similarity);
+        this.printMenuItemPattern = initializePattern("print_menu_item", similarity);
+        this.documentCountPattern = initializePattern("document_count", similarity);
+        this.saveDialogPattern = initializePattern("save_dialog_title", similarity);
+        
         this.popupHandler = new PopupHandler(systmOneWindow);
         
         if (systmOneWindow == null) {
@@ -83,15 +85,14 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Creates a location-specific pattern with the given similarity threshold.
+     * Creates a pattern with the given name and similarity threshold.
      * 
      * @param baseName Base name of the pattern image file
      * @param similarity Pattern matching similarity threshold
      * @return Configured Pattern instance for UI matching
      */
     private Pattern initializePattern(String baseName, double similarity) {
-        String locationSuffix = "_" + location.name().toLowerCase();
-        return new Pattern(baseName + locationSuffix + ".png").similar(similarity);
+        return new Pattern(baseName + ".png").similar(similarity);
     }
 
     /**
@@ -380,9 +381,5 @@ public class SystmOneAutomator {
 
     public Pattern getSaveDialogPattern() {
         return saveDialogPattern;
-    }
-
-    public ApplicationConfig.Location getLocation() {
-        return location;
     }
 }
