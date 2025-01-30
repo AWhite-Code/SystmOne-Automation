@@ -47,37 +47,28 @@ public class DocumentProcessor {
     private final ProcessingStats stats;
 
     /**
-     * Main constructor for production use. Automatically sets testMode to false.
+     * Constructor for the DocumentProcessor.
+     * Initializes core components and sets up scrollbar tracking for document navigation.
+     *
+     * @param automator Handles SystmOne application interactions
+     * @param uiHandler Manages UI state and stability verification
+     * @param outputFolder Directory path for saving processed documents
+     * @param killSwitch Control flag for graceful shutdown
      */
     public DocumentProcessor(
             SystmOneAutomator automator,
             UiStateHandler uiHandler,
             String outputFolder,
             AtomicBoolean killSwitch) {
-        this(automator, uiHandler, outputFolder, killSwitch, ApplicationConfig.TEST_MODE);
-    }
-
-    /**
-     * Extended constructor that allows explicit control of test mode.
-     * This is used internally and for testing purposes.
-     */
-    public DocumentProcessor(
-            SystmOneAutomator automator,
-            UiStateHandler uiHandler,
-            String outputFolder,
-            AtomicBoolean killSwitch,
-            boolean testMode) {
         this.automator = automator;
         this.uiHandler = uiHandler;
         this.outputFolder = outputFolder;
         this.killSwitch = killSwitch;
         this.stats = new ProcessingStats();
         
-        // Only initialize scrollbar tracking in production mode
-        if (!testMode) {
-            if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
-                logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
-            }
+        // Initialize scrollbar tracking
+        if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
+            logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
         }
     }
 

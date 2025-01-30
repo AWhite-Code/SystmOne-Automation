@@ -66,10 +66,7 @@ public class Application {
                 return;
             }
 
-            // Configure graceful shutdown monitoring in production
-            if (!ApplicationConfig.TEST_MODE) {
-                setupKillSwitch();
-            }
+            setupKillSwitch();
 
             // Initialize document processor with required components
             SystemComponents components = initResult.getComponents();
@@ -80,26 +77,17 @@ public class Application {
                 killSwitch
             );
 
-            // Execute appropriate processing mode
-            if (ApplicationConfig.TEST_MODE) {
-                logger.info("Running in test mode - popup handling test only");
-                processor.runTestOperations();
-            } else {
-                logger.info("Running in production mode - full document processing");
-                stats = processor.processDocuments();
-            }
+            logger.info("Running in production mode - full document processing");
+            stats = processor.processDocuments();
 
         } catch (Exception e) {
             logger.error("Critical application failure: {}", e.getMessage(), e);
         } finally {
-            // Generate processing summary for production runs
-            if (!ApplicationConfig.TEST_MODE && stats != null) {
                 logger.info("Generating processing summary");
                 SummaryGenerator.generateProcessingSummary(stats);
             }
             logger.info("Application shutdown complete");
         }
-    }
 
     /**
      * Initializes the kill switch monitoring system for graceful shutdown.

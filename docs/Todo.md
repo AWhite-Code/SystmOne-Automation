@@ -6,5 +6,3 @@ Redo max documents code to be tied to scrollbar? maybe? Probably not replace but
 
 Log output file
 Clean up logging to be more sensible
-
-Remove all Dev Environ calls.

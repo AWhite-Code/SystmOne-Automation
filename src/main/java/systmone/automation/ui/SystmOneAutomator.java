@@ -171,69 +171,8 @@ public class SystmOneAutomator {
      * @throws FindFailed if required UI elements cannot be found
      */
     public void printDocument(Match documentMatch, String savePath) throws FindFailed {
-        if (ApplicationConfig.TEST_MODE) {
-            handleTestModePrintOperation(documentMatch);
-        } else {
             handleProductionPrintOperation(documentMatch, savePath);
         }
-    }
-
-    /**
-     * Handles print operations in test mode with simulated popup interactions.
-     * 
-     * @param documentMatch The matched document UI element
-     * @throws FindFailed if required UI elements cannot be found
-     */
-    private void handleTestModePrintOperation(Match documentMatch) throws FindFailed {
-        logger.info("TEST MODE: Starting simulated print operation");
-        
-        // Open print dialog
-        documentMatch.rightClick();
-        Match printMenuItem = systmOneWindow.wait(printMenuItemPattern, 
-            ApplicationConfig.MENU_TIMEOUT);
-        printMenuItem.click();
-        
-        // Wait for and verify save dialog
-        systmOneWindow.wait(saveDialogPattern, ApplicationConfig.DIALOG_TIMEOUT);
-        
-        // Provide test instructions
-        logger.info("TEST MODE: Save dialog open - you can now:");
-        logger.info("1. Manually close the save dialog");
-        logger.info("2. Wait for 'retry' popup");
-        logger.info("3. Watch the automation handle the retry");
-        
-        try {
-            // Wait for manual interaction with reasonable timeout
-            long startTime = System.currentTimeMillis();
-            long timeout = 30000; // 30 seconds for testing
-            boolean dialogClosed = false;
-            
-            // Monitor save dialog until it's closed or times out
-            while (System.currentTimeMillis() - startTime < timeout) {
-                if (systmOneWindow.exists(saveDialogPattern) == null) {
-                    dialogClosed = true;
-                    break;
-                }
-                Thread.sleep(500);
-            }
-            
-            // Handle timeout case
-            if (!dialogClosed) {
-                logger.warn("TEST MODE: Timed out waiting for manual dialog close");
-                throw new FindFailed("Test mode timeout - save dialog not closed");
-            }
-            
-            // Allow time for retry popup to appear
-            Thread.sleep(1000);
-            
-            // Trigger popup handling
-            throw new FindFailed("TEST MODE: Triggering retry popup handler");
-            
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new FindFailed("Test mode interrupted");
-        }
-    }
 
     /**
      * Handles print operations in production mode with actual save operations.
