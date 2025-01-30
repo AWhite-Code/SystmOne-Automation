@@ -1,9 +1,9 @@
 package systmone.automation.ui;
 
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import org.sikuli.script.*;
+import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
@@ -42,7 +42,6 @@ public class SystmOneAutomator {
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
     private final Pattern printMenuItemPattern;
-    private final Pattern documentCountPattern;
     private final Pattern saveDialogPattern;
 
     /**
@@ -61,7 +60,6 @@ public class SystmOneAutomator {
         // Initialize patterns with location-specific names
         this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
         this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
-        this.documentCountPattern = initializePattern("document_count", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
@@ -117,50 +115,67 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Extracts and returns the total document count from the UI.
-     * Searches for the document count pattern and parses the surrounding text.
+     * Extracts and returns the total document count from the UI using OCR.
+     * Searches for the text "Documents" and extracts the associated number.
      * 
      * @return The document count, or -1 if count cannot be determined
      */
     public int getDocumentCount() {
         try {
-            // Search for document count only in the designated bottom-left region
-            Match countMatch = searchRegions.getDocumentCountRegion().exists(documentCountPattern);
-            if (countMatch == null) {
-                logger.error("Document count pattern not found in expected region");
+            Settings.OcrTextRead = true;
+            Settings.OcrTextSearch = true;
+            
+            Region searchRegion = searchRegions.getDocumentCountRegion();
+            Match textMatch = searchRegion.findText("Doc");  // Search for shorter text to be safer
+            
+            if (textMatch == null) {
+                logger.error("Could not find 'Doc' text in expected region");
                 return -1;
             }
-    
-            // Create a text capture region around the match
-            // Note: We keep the expanded region for text capture to ensure we get the full number
-            Region textRegion = new Region(
-                countMatch.x - 50,
-                countMatch.y,
-                150,
-                countMatch.h
+            
+            // Create our text capture region
+            Region numberRegion = new Region(
+                textMatch.x - 60,
+                textMatch.y,
+                80,
+                textMatch.h
             );
-    
-            String countText = textRegion.text();
-            return extractNumberFromText(countText);
+            
+            String rawText = numberRegion.text().trim();
+            logger.debug("Raw OCR text found: '{}'", rawText);
+            
+            // More flexible pattern that handles partial matches
+            // This will match numbers followed by any text starting with "Doc"
+            java.util.regex.Pattern numberPattern = java.util.regex.Pattern.compile("(\\d+)\\s*Doc\\w*");
+            java.util.regex.Matcher matcher = numberPattern.matcher(rawText);
+            
+            if (matcher.find()) {
+                String numberStr = matcher.group(1);
+                int detectedCount = Integer.parseInt(numberStr);
+                
+                // Handle border interference
+                if (numberStr.startsWith("1")) {
+                    String potentialRealCount = numberStr.substring(1);
+                    int countWithoutBorder = Integer.parseInt(potentialRealCount);
+                    
+                    if (countWithoutBorder > 0 && detectedCount > 999) {
+                        logger.debug("Detected border interference: {} -> {}", 
+                                   detectedCount, countWithoutBorder);
+                        return countWithoutBorder;
+                    }
+                }
+                
+                return detectedCount;
+            }
+            
+            // If we didn't match our pattern, log the exact text we found to help with debugging
+            logger.error("Could not extract number from text: '{}' - no matching pattern", rawText);
+            return -1;
             
         } catch (Exception e) {
-            logger.error("Error getting document count: " + e.getMessage(), e);
+            logger.error("Error getting document count using OCR: " + e.getMessage(), e);
             return -1;
         }
-    }
-
-    /**
-     * Extracts the first numeric value from a text string.
-     * 
-     * @param text Text containing numeric values
-     * @return First number found in text, or -1 if no number is found
-     */
-    private int extractNumberFromText(String text) {
-        return Arrays.stream(text.split("\\s+"))
-            .filter(part -> part.matches("\\d+"))
-            .findFirst()
-            .map(Integer::parseInt)
-            .orElse(-1);
     }
 
     /**
