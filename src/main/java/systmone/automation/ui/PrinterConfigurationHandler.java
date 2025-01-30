@@ -41,6 +41,8 @@ public class PrinterConfigurationHandler {
         this.selectionBorderPattern = selectionBorderPattern;
     }
 
+    // TODO: IMPLEMENT POP UP HANDLING HERE
+    
     /**
      * Main entry point for printer configuration. Orchestrates the entire process
      * by calling specific methods for each major step.
