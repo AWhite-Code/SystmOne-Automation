@@ -12,6 +12,7 @@ import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 import systmone.automation.util.ClipboardHelper;
+import systmone.automation.util.LogManager;
 
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,13 +88,16 @@ public class DocumentProcessor {
      */
     public ProcessingStats processDocuments() {
         logger.info("Starting document processing workflow");
-        
+    
         // Get total document count and validate
         stats.setTotalDocuments(automator.getDocumentCount());
         if (stats.getTotalDocuments() <= 0) {
             logger.error("Invalid document count: {}", stats.getTotalDocuments());
             return stats;
         }
+        
+        // Initialize logging with document count
+        LogManager.initializeLogging(stats.getTotalDocuments());
         
         logger.info("Beginning processing of {} documents", stats.getTotalDocuments());
     
