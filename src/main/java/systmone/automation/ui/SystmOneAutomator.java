@@ -41,7 +41,6 @@ public class SystmOneAutomator {
 
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
-    private final Pattern printMenuItemPattern;
     private final Pattern saveDialogPattern;
 
     /**
@@ -59,7 +58,6 @@ public class SystmOneAutomator {
         
         // Initialize patterns with location-specific names
         this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
-        this.printMenuItemPattern = initializePattern("print_menu_item", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
@@ -265,7 +263,7 @@ public class SystmOneAutomator {
 
     /**
      * Opens the print menu through right-click context menu interaction.
-     * Handles the complete sequence of right-click and print option selection.
+     * Uses text recognition to find the Print option.
      * 
      * @param documentMatch The matched document UI element
      * @return true if print menu was successfully opened, false otherwise
@@ -273,38 +271,57 @@ public class SystmOneAutomator {
      */
     private boolean openPrintMenu(Match documentMatch) throws FindFailed {
         try {
-            // Check for and clear any existing popups
             if (popupHandler.isPopupPresent()) {
                 logger.info("Clearing popup before print menu operation");
                 popupHandler.dismissPopup(false);
                 Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             }
     
-            // Right-click the document to open context menu
             documentMatch.rightClick();
             Thread.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
     
-            // Check for popup after right-click
             if (popupHandler.isPopupPresent()) {
                 logger.info("Popup appeared after right-click - handling");
                 popupHandler.dismissPopup(false);
                 return false;
             }
     
-            // Look for print menu item only in the designated region
-            Match printMenuItem = searchRegions.getPrintMenuRegion().wait(
-                printMenuItemPattern, 
-                ApplicationConfig.MENU_TIMEOUT
+            // Enable OCR and get the menu region
+            Settings.OcrTextRead = true;
+            Settings.OcrTextSearch = true;
+            Region menuRegion = searchRegions.getPrintMenuRegion();
+    
+            // Log what we're seeing for debugging purposes
+            String visibleText = menuRegion.text();
+            logger.info("Text detected in menu region: '{}'", visibleText);
+    
+            // Look for our anchor point - "Rotate Left"
+            Match rotateLeftMatch = menuRegion.waitText("Rotate Right", ApplicationConfig.MENU_TIMEOUT);
+            if (rotateLeftMatch == null) {
+                logger.error("Could not find 'Rotate Left' anchor point");
+                return false;
+            }
+    
+            logger.info("Found 'Rotate Left' at position ({}, {})", rotateLeftMatch.x, rotateLeftMatch.y);
+    
+            // Create a new region just below "Rotate Left" where we know "Print" appears
+            Region printRegion = new Region(
+                rotateLeftMatch.x,          // Same x position as Rotate Left
+                rotateLeftMatch.y + 45,     // Move down by one menu item height
+                rotateLeftMatch.w,          // Same width as Rotate Left
+                rotateLeftMatch.h           // Same height as Rotate Left
             );
-            
-            // Final popup check before clicking
+    
+            // Check for popup before clicking
             if (popupHandler.isPopupPresent()) {
                 logger.info("Popup appeared before print menu selection - handling");
                 popupHandler.dismissPopup(false);
                 return false;
             }
     
-            printMenuItem.click();
+            logger.info("Clicking calculated Print position at ({}, {})", printRegion.x, printRegion.y);
+            // Click in the center of our calculated region
+            printRegion.click();
             return true;
     
         } catch (InterruptedException e) {
