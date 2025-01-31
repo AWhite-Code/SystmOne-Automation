@@ -1,4 +1,3 @@
-// RegionConstants.java in config package
 package systmone.automation.config;
 
 /**
@@ -15,8 +14,19 @@ public final class RegionConstants {
     private RegionConstants() {}
     
     // Document Count region constants
-    public static final double DOCUMENT_COUNT_Y = 0.8;      // Starts 80% down from top
-    public static final double DOCUMENT_COUNT_WIDTH = 0.2;  // Uses leftmost 20% of width
+    public static final double DOCUMENT_COUNT_Y = 0.8;      
+    public static final double DOCUMENT_COUNT_WIDTH = 0.2;  
+    
+    // Context menu dimensions
+    public static final int CONTEXT_MENU_WIDTH = 230;
+    public static final int CONTEXT_MENU_HEIGHT = 275;
+    
+    // Menu item dimensions
+    public static final int MENU_ITEM_HEIGHT = 25;
+    
+    // Menu item offsets from top-left of menu
+    public static final int PRINT_X_OFFSET = 100;
+    public static final int PRINT_Y_OFFSET = 280;
     
     // Print Menu region constants
     public static final double PRINT_MENU_Y = 0.25;         // Starts quarterway down screen

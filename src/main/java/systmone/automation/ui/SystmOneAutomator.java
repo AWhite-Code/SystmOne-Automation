@@ -1,12 +1,22 @@
 package systmone.automation.ui;
 
+import java.text.SimpleDateFormat;
 import java.util.concurrent.TimeUnit;
+
+import javax.imageio.ImageIO;
 
 import org.sikuli.script.*;
 import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.awt.image.BufferedImage;
+import java.util.Date;
+
+import net.sourceforge.tess4j.Tesseract;
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.config.RegionConstants;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.
@@ -269,17 +279,56 @@ public class SystmOneAutomator {
                 popupHandler.dismissPopup(false);
                 Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             }
-
-            logger.info("Right-clicking to open menu at: ({}, {})", documentMatch.x, documentMatch.y);
-            documentMatch.rightClick();
-            Thread.sleep(50); // Short delay for menu to appear
     
-            // Move mouse to Print option and click
-            Location printLocation = new Location(documentMatch.x + 100, documentMatch.y + 240);
-            //printLocation.hover(); // Optional: hover first
-            printLocation.click();
+            logger.info("Right-clicking at location: ({}, {})", documentMatch.x, documentMatch.y);
+            documentMatch.rightClick();
+            Thread.sleep(100); // Give menu time to appear
+    
+            // Create our context menu region
+            Region menuRegion = new Region(
+                documentMatch.x,
+                documentMatch.y,
+                RegionConstants.CONTEXT_MENU_WIDTH,
+                RegionConstants.CONTEXT_MENU_HEIGHT
+            );
+    
+            // Enable OCR
+            Settings.OcrTextRead = true;
+            Settings.OcrTextSearch = true;
+    
+            // First, capture debug information
+            //ScreenImage menuImage = menuRegion.getScreen().capture(menuRegion);
+    
+            // Create debug directory if it doesn't exist
+            File debugDir = new File("debug/contextmenu");
+            if (!debugDir.exists()) {
+                debugDir.mkdirs();
+            }
+
+            //String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
             
-            return true;
+            // Save original screenshot - using just the directory path for Sikuli
+            //String debugDirPath = "debug/contextmenu";
+            //menuImage.save(debugDirPath, "menu_original_" + timestamp);
+            //logger.info("Saved original menu screenshot to: {}", debugDirPath + "/menu_original_" + timestamp + ".png");
+
+            // Log the full text we found
+            //String menuText = menuRegion.text();
+            //logger.info("Full menu text detected: '{}'", menuText);       
+    
+            // Now try to find and click the Print option
+            try {
+                Match printMatch = menuRegion.findText("Print");
+                if (printMatch != null) {
+                    logger.info("Found Print option at: ({}, {})", printMatch.x, printMatch.y);
+                    printMatch.click();
+                    return true;
+                }
+            } catch (FindFailed e) {
+                logger.error("Could not find Print option in menu: {}", e.getMessage());
+            }
+    
+            return false;
     
         } catch (Exception e) {
             logger.error("Unexpected error in openPrintMenu: ", e);

@@ -262,7 +262,7 @@ public class UiStateHandler {
                 searchRegion.w,
                 searchRegion.h
             ));
-            saveDebugScreenshot(fullScreenshot, searchRegion, "original");
+            //saveDebugScreenshot(fullScreenshot, searchRegion, "original");
     
             BufferedImage markedScreenshot = new BufferedImage(
                 searchRegion.w,
@@ -301,9 +301,9 @@ public class UiStateHandler {
             logger.info("Pixel processing took: {} ms", System.currentTimeMillis() - processStart);
     
             // Finalize debug visualization
-            g2d.dispose();
-            saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
-            logger.info("Debug image processing took: {} ms", System.currentTimeMillis() - debugStart);
+            //g2d.dispose();
+            //saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
+            //logger.info("Debug image processing took: {} ms", System.currentTimeMillis() - debugStart);
             logger.info("Longest run found: {} pixels starting at y={}", longestRun, bestStart);
     
             // Return thumb bounds if valid run found
