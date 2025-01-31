@@ -1,9 +1,6 @@
 package systmone.automation.ui;
 
-import java.text.SimpleDateFormat;
 import java.util.concurrent.TimeUnit;
-
-import javax.imageio.ImageIO;
 
 import org.sikuli.script.*;
 import org.sikuli.basics.Settings;
@@ -11,10 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.awt.image.BufferedImage;
-import java.util.Date;
 
-import net.sourceforge.tess4j.Tesseract;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.config.RegionConstants;
 

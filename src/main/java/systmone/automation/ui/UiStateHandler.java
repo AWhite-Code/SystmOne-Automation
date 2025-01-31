@@ -7,11 +7,7 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.io.File;
 import java.awt.Graphics2D;
-
-import javax.imageio.ImageIO;
 
 import systmone.automation.config.ApplicationConfig;
 
@@ -255,7 +251,7 @@ public class UiStateHandler {
                 singlePixel.getWidth(), singlePixel.getHeight());
     
             // Create debug visualization
-            long debugStart = System.currentTimeMillis();
+            //long debugStart = System.currentTimeMillis();
             BufferedImage fullScreenshot = robot.createScreenCapture(new Rectangle(
                 scanX - (searchRegion.w / 2),
                 searchRegion.y,
@@ -453,7 +449,7 @@ public class UiStateHandler {
     /**
      * Saves debug screenshots for scrollbar detection analysis.
      */
-    private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
+    /* private void saveDebugScreenshot(BufferedImage screenshot, Region searchRegion, String type) {
         try {
             File debugDir = new File("debug/scrollbar");
             debugDir.mkdirs();
@@ -472,5 +468,5 @@ public class UiStateHandler {
         } catch (IOException e) {
             logger.error("Failed to save debug screenshot: {}", e.getMessage());
         }
-    }
+    }*/
 }

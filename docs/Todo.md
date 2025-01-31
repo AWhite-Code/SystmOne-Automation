@@ -6,3 +6,5 @@ Redo max documents code to be tied to scrollbar? maybe? Probably not replace but
 
 Log output file
 Clean up logging to be more sensible
+
+Make sure code works on both monitors (right monitor at Dent doesnt worK)
