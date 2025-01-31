@@ -12,7 +12,6 @@ import systmone.automation.config.RegionConstants;
 public class SearchRegions {
     private final Region window;
     private final Region documentCountRegion;
-    private final Region printMenuRegion;
     private final Region selectionBorderRegion;
 
     public SearchRegions(Region window) {
@@ -21,7 +20,6 @@ public class SearchRegions {
         int windowHeight = window.h;
         
         this.documentCountRegion = createDocumentCountRegion(window, windowWidth, windowHeight);
-        this.printMenuRegion = createPrintMenuRegion(window, windowWidth, windowHeight);
         this.selectionBorderRegion = createSelectionBorderRegion(window, windowWidth, windowHeight);
     }
 
@@ -31,15 +29,6 @@ public class SearchRegions {
             window.y + (int)(height * RegionConstants.DOCUMENT_COUNT_Y),
             (int)(width * RegionConstants.DOCUMENT_COUNT_WIDTH),
             (int)(height * (1.0 - RegionConstants.DOCUMENT_COUNT_Y))  // From Y position to bottom
-        );
-    }
-
-    private Region createPrintMenuRegion(Region window, int width, int height) {
-        return new Region(
-            window.x,  // Start from left edge
-            window.y + (int)(height * RegionConstants.PRINT_MENU_Y),
-            (int)(width * RegionConstants.PRINT_MENU_WIDTH),
-            (int)(height * (1.0 - RegionConstants.PRINT_MENU_Y))  // From Y position to bottom
         );
     }
 
@@ -55,7 +44,6 @@ public class SearchRegions {
     // Getters
 
     public Region getDocumentCountRegion() { return documentCountRegion; }
-    public Region getPrintMenuRegion() { return printMenuRegion; }
     public Region getSelectionBorderRegion() { return selectionBorderRegion; }
     public Region getFullWindow() { return window; }
 }

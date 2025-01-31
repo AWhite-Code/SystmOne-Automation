@@ -261,75 +261,31 @@ public class SystmOneAutomator {
         }
     }
 
-    /**
-     * Opens the print menu through right-click context menu interaction.
-     * Uses text recognition to find the Print option.
-     * 
-     * @param documentMatch The matched document UI element
-     * @return true if print menu was successfully opened, false otherwise
-     * @throws FindFailed if required UI elements cannot be found
-     */
     private boolean openPrintMenu(Match documentMatch) throws FindFailed {
         try {
+            // Check for and dismiss any existing popups
             if (popupHandler.isPopupPresent()) {
                 logger.info("Clearing popup before print menu operation");
                 popupHandler.dismissPopup(false);
                 Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             }
-    
+
+            logger.info("Right-clicking to open menu at: ({}, {})", documentMatch.x, documentMatch.y);
             documentMatch.rightClick();
-            Thread.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
+            Thread.sleep(50); // Short delay for menu to appear
     
-            if (popupHandler.isPopupPresent()) {
-                logger.info("Popup appeared after right-click - handling");
-                popupHandler.dismissPopup(false);
-                return false;
-            }
-    
-            // Enable OCR and get the menu region
-            Settings.OcrTextRead = true;
-            Settings.OcrTextSearch = true;
-            Region menuRegion = searchRegions.getPrintMenuRegion();
-    
-            // Log what we're seeing for debugging purposes
-            String visibleText = menuRegion.text();
-            logger.info("Text detected in menu region: '{}'", visibleText);
-    
-            // Look for our anchor point - "Rotate Left"
-            Match rotateLeftMatch = menuRegion.waitText("Rotate Right", ApplicationConfig.MENU_TIMEOUT);
-            if (rotateLeftMatch == null) {
-                logger.error("Could not find 'Rotate Left' anchor point");
-                return false;
-            }
-    
-            logger.info("Found 'Rotate Left' at position ({}, {})", rotateLeftMatch.x, rotateLeftMatch.y);
-    
-            // Create a new region just below "Rotate Left" where we know "Print" appears
-            Region printRegion = new Region(
-                rotateLeftMatch.x,          // Same x position as Rotate Left
-                rotateLeftMatch.y + 45,     // Move down by one menu item height
-                rotateLeftMatch.w,          // Same width as Rotate Left
-                rotateLeftMatch.h           // Same height as Rotate Left
-            );
-    
-            // Check for popup before clicking
-            if (popupHandler.isPopupPresent()) {
-                logger.info("Popup appeared before print menu selection - handling");
-                popupHandler.dismissPopup(false);
-                return false;
-            }
-    
-            logger.info("Clicking calculated Print position at ({}, {})", printRegion.x, printRegion.y);
-            // Click in the center of our calculated region
-            printRegion.click();
+            // Move mouse to Print option and click
+            Location printLocation = new Location(documentMatch.x + 100, documentMatch.y + 240);
+            //printLocation.hover(); // Optional: hover first
+            printLocation.click();
+            
             return true;
     
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new FindFailed("Print menu operation interrupted");
+        } catch (Exception e) {
+            logger.error("Unexpected error in openPrintMenu: ", e);
+            throw new FindFailed("Print menu operation failed: " + e.getMessage());
         }
     }
-
 
     /**
      * Moves the document selection down one position.
