@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
+import systmone.automation.util.LogManager;
 
 /**
  * Manages the complete initialization sequence for the SystmOne automation system.
@@ -87,9 +88,17 @@ public class SystemInitialiser {
             if (outputFolder == null) {
                 return InitialisationResult.failed("Failed to create output directory");
             }
+            
+            int documentCount = automator.getDocumentCount();
+            if (documentCount <= 0) {
+                return InitialisationResult.failed("Invalid document count detected: " + documentCount);
+            }
+            // Initialize logging with the document count we just got
+            LogManager.initializeLogging();
+            LogManager.updateLoggingWithDocumentCount(documentCount);
        
             // Initialize core system component container
-            SystemComponents components = new SystemComponents(automator, outputFolder);
+            SystemComponents components = new SystemComponents(automator, outputFolder, documentCount);
                
             // Verify all required components are properly initialized
             if (components.getUiHandler() == null || components.getPopupHandler() == null) {

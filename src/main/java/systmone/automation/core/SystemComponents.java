@@ -35,6 +35,7 @@ public class SystemComponents {
     
     // System configuration
     private final String outputFolder;
+    private final int documentCount;
 
     /**
      * Creates a new SystemComponents instance with the required components.
@@ -46,7 +47,7 @@ public class SystemComponents {
      * @throws IllegalArgumentException if automator is null, output folder is null/empty,
      *         or if the main application window cannot be accessed
      */
-    public SystemComponents(SystmOneAutomator automator, String outputFolder) {
+    public SystemComponents(SystmOneAutomator automator, String outputFolder, int documentCount) {
         if (automator == null) {
             throw new IllegalArgumentException("Automator cannot be null");
         }
@@ -63,11 +64,17 @@ public class SystemComponents {
         // Initialize core components
         this.automator = automator;
         this.outputFolder = outputFolder;
+        this.documentCount = documentCount;
         
         // Create dependent components in order
         this.popupHandler = createPopupHandler(mainWindow);
         this.uiHandler = createUiStateHandler(mainWindow, this.popupHandler);
     }
+
+        // Add getter for document count
+        public int getDocumentCount() {
+            return documentCount;
+        }
 
     /**
      * Creates and initializes the popup handler component.

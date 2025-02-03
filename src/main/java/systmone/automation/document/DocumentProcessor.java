@@ -46,6 +46,7 @@ public class DocumentProcessor {
     private final String outputFolder;
     private final AtomicBoolean killSwitch;
     private final ProcessingStats stats;
+    private int cachedDocumentCount = -1;
 
     /**
      * Constructor for the DocumentProcessor.
@@ -72,7 +73,7 @@ public class DocumentProcessor {
             logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
         }
     }
-
+    
     /**
      * Orchestrates the complete document processing workflow.
      * Manages document counting, individual processing operations,
@@ -89,16 +90,17 @@ public class DocumentProcessor {
     public ProcessingStats processDocuments() {
         logger.info("Starting document processing workflow");
     
-        // Get total document count and validate
-        stats.setTotalDocuments(automator.getDocumentCount());
+        // Use cached document count
+        stats.setTotalDocuments(getDocumentCount());
         if (stats.getTotalDocuments() <= 0) {
             logger.error("Invalid document count: {}", stats.getTotalDocuments());
             return stats;
         }
         
-        // Initialize logging with document count
-        LogManager.initializeLogging(stats.getTotalDocuments());
         
+        // Initialize logging with the count we just got
+        LogManager.updateLoggingWithDocumentCount(stats.getTotalDocuments());
+
         logger.info("Beginning processing of {} documents", stats.getTotalDocuments());
     
         // Process each document until complete or killed
@@ -386,5 +388,14 @@ public class DocumentProcessor {
         // Use actual save method with test path
         String testPath = buildDocumentPath(1);
         saveDocument(documentMatch, testPath);
+    }
+
+    // Getters
+
+    private int getDocumentCount() {
+        if (cachedDocumentCount == -1) {
+            cachedDocumentCount = automator.getDocumentCount();
+        }
+        return cachedDocumentCount;
     }
 }

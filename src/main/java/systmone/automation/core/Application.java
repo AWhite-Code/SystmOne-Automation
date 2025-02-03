@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import systmone.automation.document.DocumentProcessor;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.state.ProcessingStats;
+import systmone.automation.util.LogManager;
 import systmone.automation.util.SummaryGenerator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +53,9 @@ public class Application {
      * @param args Command line arguments (not currently used)
      */
     public static void main(String[] args) {
+        // Initialize logging at startup with a preliminary name
+        LogManager.initializeLogging();
+        
         logger.info("Starting SystmOne Document Processing Application");
         ProcessingStats stats = null;
 
@@ -67,7 +71,7 @@ public class Application {
 
             setupKillSwitch();
 
-            // Initialize document processor with required components
+            // Rest of your existing code remains exactly the same
             SystemComponents components = initResult.getComponents();
             DocumentProcessor processor = new DocumentProcessor(
                 components.getAutomator(),
@@ -81,12 +85,14 @@ public class Application {
 
         } catch (Exception e) {
             logger.error("Critical application failure: {}", e.getMessage(), e);
-        } finally {
-                logger.info("Generating processing summary");
-                SummaryGenerator.generateProcessingSummary(stats);
-            }
+        } 
+        
+        finally {
+            logger.info("Generating processing summary");
+            SummaryGenerator.generateProcessingSummary(stats);
             logger.info("Application shutdown complete");
         }
+    }
 
     /**
      * Initializes the kill switch monitoring system for graceful shutdown.
