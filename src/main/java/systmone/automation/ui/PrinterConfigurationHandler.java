@@ -7,7 +7,6 @@ import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
-import java.util.Iterator;
 
 /**
  * Handles the configuration of the PDF printer in SystmOne.
@@ -200,100 +199,68 @@ public class PrinterConfigurationHandler {
         
         logger.info("Looking for printer dropdown in settings window...");
         
-        // Create a region that focuses on the top portion where the dropdown is
-        // We know from the screenshot it's near the top of the window
+        // Calculate dimensions on a 5×5 grid for precise positioning
+        int columnWidth = windowRegion.w / 5;   
+        int rowHeight = windowRegion.h / 5;     
+        
+        // Define search region for the dropdown arrow, with a small upward adjustment
         Region dropdownSearchRegion = new Region(
-            windowRegion.x,                    // Start from left edge
-            windowRegion.y + 30,              // Start a bit below the title bar
-            windowRegion.w,                    // Full width
-            100                               // Focus on just the top portion
+            windowRegion.x + (columnWidth * 3),  // Start from 4th column
+            windowRegion.y + rowHeight - 20,     // Start from 2nd row, adjusted up slightly
+            columnWidth * 2,                     // Cover two columns width
+            rowHeight                            // Cover one row height
         );
     
-        // Now look for the dropdown arrow pattern with a lower similarity threshold
-        // This accounts for different Windows themes and scaling
+        // Search for the dropdown arrow with reduced similarity threshold to account for UI variations
         Pattern dropdownArrowPattern = new Pattern("dropdown_arrow.png")
-            .similar(0.6f);  // Lower similarity threshold
+            .similar(0.6f);
     
-        Match dropdownMatch = null;
+        // Try to find and click the dropdown arrow
         try {
-            // Find all matches and get the leftmost one (closest to "Printer" label)
-            Iterator<Match> matches = dropdownSearchRegion.findAll(dropdownArrowPattern);
-            Match leftmostMatch = null;
-            int leftmostX = Integer.MAX_VALUE;
-    
-            while(matches.hasNext()) {
-                Match match = matches.next();
-                if (match.x < leftmostX) {
-                    leftmostX = match.x;
-                    leftmostMatch = match;
-                }
-            }
-            
-            dropdownMatch = leftmostMatch;
+            Match dropdownMatch = dropdownSearchRegion.find(dropdownArrowPattern);
+            logger.info("Found dropdown at coordinates: ({}, {})", dropdownMatch.x, dropdownMatch.y);
+            dropdownMatch.click();
         } catch (FindFailed e) {
             logger.error("Could not find dropdown arrow: {}", e.getMessage());
             return false;
         }
-    
-        if (dropdownMatch == null) {
-            logger.error("No dropdown arrow found in the expected region");
-            return false;
-        }
-    
-        logger.info("Found dropdown, clicking...");
-        dropdownMatch.click();
         
         // Give the dropdown menu time to appear
         TimeUnit.MILLISECONDS.sleep(500);
         
-        // Type the printer name and press Enter
+        // Select the PDF printer
         windowRegion.type("Microsoft Print to PDF");
         windowRegion.type(Key.ENTER);
     
-        // After selecting the printer and pressing Enter, wait a moment for any UI updates
+        // Allow time for UI update after printer selection
         TimeUnit.MILLISECONDS.sleep(500);
         
         logger.info("Looking for OK button...");
         
-        // Create a region focusing on the bottom portion of the window where OK buttons typically appear
+        // Define region for OK button in bottom half of window
         Region buttonRegion = new Region(
-            windowRegion.x,                        // Start from left edge
-            windowRegion.y + (windowRegion.h / 2), // Start from middle of window
-            windowRegion.w,                        // Full width
-            windowRegion.h / 2                     // Bottom half of window
+            windowRegion.x,                        
+            windowRegion.y + (windowRegion.h / 2), 
+            windowRegion.w,                        
+            windowRegion.h / 2                     
         );
         
         // Enable OCR for text search
         Settings.OcrTextRead = true;
         Settings.OcrTextSearch = true;
         
-        // Try variations of OK text that might appear
-        String[] okVariations = {"OK", "Ok", "ok"};
-        Match okButton = null;
-        
-        for (String okText : okVariations) {
-            try {
-                okButton = buttonRegion.waitText(okText, 2);
-                if (okButton != null) {
-                    logger.info("Found OK button with text: '{}'", okText);
-                    break;
-                }
-            } catch (FindFailed e) {
-                logger.debug("Did not find OK button with text: '{}'", okText);
-            }
-        }
-        
-        if (okButton == null) {
+        // Look for OK button
+        try {
+            Match okButton = buttonRegion.waitText("Ok", 2);
+            logger.info("Found OK button, clicking...");
+            okButton.click();
+        } catch (FindFailed e) {
             logger.error("Could not find OK button");
             return false;
         }
-        
-        logger.info("Clicking OK button...");
-        okButton.click();
-        
-        // Wait a moment to ensure the click is processed
+    
+        // Allow time for click processing
         TimeUnit.MILLISECONDS.sleep(500);
-        
         return true;
     }
 

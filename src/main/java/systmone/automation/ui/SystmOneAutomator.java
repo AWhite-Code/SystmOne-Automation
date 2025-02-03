@@ -7,10 +7,8 @@ import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 
 import systmone.automation.config.ApplicationConfig;
-import systmone.automation.config.RegionConstants;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.
