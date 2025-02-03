@@ -42,6 +42,7 @@ public class PrinterConfigurationHandler {
     }
 
     // TODO: IMPLEMENT POP UP HANDLING HERE
+    // TODO: IMPLEMENT 1 DOWN ARROWS TO SELECT NO OCR VERSION
     
     /**
      * Main entry point for printer configuration. Orchestrates the entire process
@@ -99,36 +100,43 @@ public class PrinterConfigurationHandler {
     }
 
     /**
-     * Handles the context menu interaction to select the No OCR option.
+     * Handles the context menu interaction to select the No OCR option using keyboard navigation.
+     * This method uses keyboard inputs instead of OCR text detection for more reliable operation.
+     * 
+     * @param documentMatch The Match object representing the found document
+     * @return boolean indicating whether the operation was successful
+     * @throws FindFailed if the document interaction fails
+     * @throws InterruptedException if the thread is interrupted during delays
      */
     private boolean selectNoOCROption(Match documentMatch) throws FindFailed, InterruptedException {
         logger.info("Found document, performing right-click...");
-        documentMatch.rightClick();
         
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
-        
-        Settings.OcrTextRead = true;
-        Settings.OcrTextSearch = true;
-        
-        Region menuRegion = new Region(
-            documentMatch.x,
-            documentMatch.y,
-            400,
-            400
-        );
-        
-        logger.info("Searching for 'No OCR' menu option...");
-        String menuText = menuRegion.text();
-        logger.debug("Menu text found: '{}'", menuText);
-        
-        Match menuItem = menuRegion.waitText("Process Patient Document (No OCR)", 2);
-        if (menuItem == null) {
-            logger.error("Could not find No OCR menu option");
+        try {
+            // Perform right-click on document
+            documentMatch.rightClick();
+            
+            // Wait for context menu to appear
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
+            
+            // Create keyboard object for input
+            Screen screen = new Screen();
+            
+            // Send down arrow to highlight the No OCR option
+            screen.type(Key.DOWN);
+            
+            // Short delay to ensure menu item is highlighted
+            TimeUnit.MILLISECONDS.sleep(100);
+            
+            // Press enter to select the highlighted option
+            screen.type(Key.ENTER);
+            
+            logger.info("Successfully selected No OCR option using keyboard navigation");
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("Failed to select No OCR option: {}", e.getMessage());
             return false;
         }
-        
-        menuItem.click();
-        return true;
     }
 
     /**

@@ -265,68 +265,48 @@ public class SystmOneAutomator {
         }
     }
 
+    /**
+     * Opens the print menu using right-click and keyboard navigation.
+     * Checks for popups before proceeding and uses keyboard shortcuts instead of OCR.
+     * 
+     * @param documentMatch The Match object representing the document location
+     * @return boolean indicating if the print menu was successfully opened
+     * @throws FindFailed if the document interaction fails
+     */
     private boolean openPrintMenu(Match documentMatch) throws FindFailed {
         try {
             // Check for and dismiss any existing popups
             if (popupHandler.isPopupPresent()) {
                 logger.info("Clearing popup before print menu operation");
                 popupHandler.dismissPopup(false);
-                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                TimeUnit.MILLISECONDS.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             }
-    
+
+            // Perform right-click on document
             logger.info("Right-clicking at location: ({}, {})", documentMatch.x, documentMatch.y);
             documentMatch.rightClick();
-            Thread.sleep(100); // Give menu time to appear
-    
-            // Create our context menu region
-            Region menuRegion = new Region(
-                documentMatch.x,
-                documentMatch.y,
-                RegionConstants.CONTEXT_MENU_WIDTH,
-                RegionConstants.CONTEXT_MENU_HEIGHT
-            );
-    
-            // Enable OCR
-            Settings.OcrTextRead = true;
-            Settings.OcrTextSearch = true;
-    
-            // First, capture debug information
-            //ScreenImage menuImage = menuRegion.getScreen().capture(menuRegion);
-    
-            // Create debug directory if it doesn't exist
-            File debugDir = new File("debug/contextmenu");
-            if (!debugDir.exists()) {
-                debugDir.mkdirs();
-            }
-
-            //String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
             
-            // Save original screenshot - using just the directory path for Sikuli
-            //String debugDirPath = "debug/contextmenu";
-            //menuImage.save(debugDirPath, "menu_original_" + timestamp);
-            //logger.info("Saved original menu screenshot to: {}", debugDirPath + "/menu_original_" + timestamp + ".png");
+            // Wait for context menu to appear
+            TimeUnit.MILLISECONDS.sleep(100);
+            
+            // Create screen object for keyboard input
+            Screen screen = new Screen();
+            
+            // Send up arrow to highlight Print option
+            screen.type(Key.UP);
+            
+            // Short delay to ensure menu item is highlighted
+            TimeUnit.MILLISECONDS.sleep(100);
+            
+            // Press enter to select Print
+            screen.type(Key.ENTER);
+            
+            logger.info("Successfully opened print menu using keyboard navigation");
+            return true;
 
-            // Log the full text we found
-            //String menuText = menuRegion.text();
-            //logger.info("Full menu text detected: '{}'", menuText);       
-    
-            // Now try to find and click the Print option
-            try {
-                Match printMatch = menuRegion.findText("Print");
-                if (printMatch != null) {
-                    logger.info("Found Print option at: ({}, {})", printMatch.x, printMatch.y);
-                    printMatch.click();
-                    return true;
-                }
-            } catch (FindFailed e) {
-                logger.error("Could not find Print option in menu: {}", e.getMessage());
-            }
-    
-            return false;
-    
         } catch (Exception e) {
-            logger.error("Unexpected error in openPrintMenu: ", e);
-            throw new FindFailed("Print menu operation failed: " + e.getMessage());
+            logger.error("Failed to open print menu: {}", e.getMessage());
+            return false;
         }
     }
 
