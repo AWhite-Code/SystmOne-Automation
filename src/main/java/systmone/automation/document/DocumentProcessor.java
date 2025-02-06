@@ -270,8 +270,9 @@ public class DocumentProcessor {
                     // Only press Down once for basic navigation
                     automator.navigateDown();
                     Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-                    verifyBasicNavigation();
-                    return true;  // Success!
+                    if (verifyBasicNavigation()){;
+                    return true;
+                    }
                 } catch (FindFailed e) {
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected after basic navigation failure - handling");
@@ -283,11 +284,7 @@ public class DocumentProcessor {
                 }
             }
     
-            // Initial navigation - only press Down once
-            automator.navigateDown();
-            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
-    
-            // Scrollbar tracking mode
+            // Start scrollbar tracking BEFORE navigation
             if (!uiHandler.startDocumentTracking()) {
                 logger.warn("Scrollbar tracking failed - falling back to basic navigation");
                 try {
@@ -303,6 +300,10 @@ public class DocumentProcessor {
                     throw e;
                 }
             }
+    
+            // Now that we have baseline, perform navigation
+            automator.navigateDown();
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
     
             int verificationAttempts = 0;
             while (verificationAttempts < ApplicationConfig.MAX_VERIFICATION_ATTEMPTS) {

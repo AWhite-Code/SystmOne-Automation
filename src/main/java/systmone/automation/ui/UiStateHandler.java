@@ -131,7 +131,7 @@ public class UiStateHandler {
             }
 
             // Wait between readings to ensure stability
-            Thread.sleep(ApplicationConfig.VERIFICATION_DELAY_MS);
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
             Rectangle position2 = findScrollbarThumb(fixedScrollbarRegion);
             if (position2 == null) {
@@ -416,13 +416,13 @@ public class UiStateHandler {
             logger.error("Document tracking not started");
             return false;
         }
-    
+
         try {
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
             Rectangle initialBaseline = baselineThumbPosition;
             int loopCount = 0;
-            boolean foundThumbWithNoMovement = false;
+            int noMovementCount = 0;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 loopCount++;
@@ -449,12 +449,15 @@ public class UiStateHandler {
                 int movement = newPosition.y - initialBaseline.y;
                 logger.info("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
 
-                if (movement == 0) {
-                    logger.info("No movement detected");
-                    return false;  // No movement means we've hit the end
-                }
 
-                if (movement > 0) {
+                if (movement == 0) {
+                    noMovementCount++;
+                    if (noMovementCount >= 3) {  // After 3 consecutive no-movement detections, we're done
+                        logger.info("No movement detected after {} consecutive checks - ending verification", noMovementCount);
+                        return false;
+                    }
+                } else if (movement > 0) {
+                    noMovementCount = 0;
                     // Confirm movement is stable
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
@@ -467,23 +470,11 @@ public class UiStateHandler {
                     logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
                 }
                 
-                // Confirm movement is stable
-                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-                Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
-                if (confirmPosition != null && confirmPosition.y > initialBaseline.y) {
-                    long totalTime = System.currentTimeMillis() - startTime;
-                    logger.info("Document load verification took: {} ms after {} loops", totalTime, loopCount);
-                    isTrackingStarted = false;
-                    return true;
-                }
                 logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
     
                 long loopTime = System.currentTimeMillis() - loopStartTime;
                 logger.debug("Loop {}: Took {} ms", loopCount, loopTime);
             }
-    
-            logger.warn("Document load verification timed out after {} ms and {} loops. Found thumb but no movement: {}", 
-                System.currentTimeMillis() - startTime, loopCount, foundThumbWithNoMovement);
             return false;
     
         } catch (Exception e) {

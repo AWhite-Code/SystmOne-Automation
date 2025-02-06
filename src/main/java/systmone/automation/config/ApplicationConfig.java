@@ -53,7 +53,7 @@ public class ApplicationConfig {
     // UI State Handler configurations
     public static final int REQUIRED_STABILITY_COUNT = 2;
     public static final int POLL_INTERVAL_MS = 10;
-    public static final int MIN_DOCUMENTS_FOR_SCROLLBAR = 2;
+    public static final int MIN_DOCUMENTS_FOR_SCROLLBAR = 3;
     
     // Scrollbar detection settings
     public static final Color SCROLLBAR_DEFAULT = new Color(205, 205, 205);  // #CDCDCD
