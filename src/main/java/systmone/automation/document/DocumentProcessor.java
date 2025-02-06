@@ -88,27 +88,29 @@ public class DocumentProcessor {
      */
     public ProcessingStats processDocuments() {
         logger.info("Starting document processing workflow");
-    
-        // Get total document count and validate
-        stats.setTotalDocuments(automator.getDocumentCount());
-        if (stats.getTotalDocuments() <= 0) {
-            logger.error("Invalid document count: {}", stats.getTotalDocuments());
-            return stats;
-        }
         
-        // Initialize logging with document count
-        LogManager.initializeLogging(stats.getTotalDocuments());
+        // Remove pre-counting since we're counting as we go
+        int failedMoveAttempts = 0;
         
-        logger.info("Beginning processing of {} documents", stats.getTotalDocuments());
-    
-        // Process each document until complete or killed
-        for (int i = 0; i < stats.getTotalDocuments() && !killSwitch.get(); i++) {
+        while (!killSwitch.get() && failedMoveAttempts < 3) {
             try {
-                processSingleDocument(i);
-                stats.setProcessedDocuments(stats.getProcessedDocuments() + 1);
+                processSingleDocument(stats.getProcessedDocuments());
+                stats.setProcessedDocuments(stats.getProcessedDocuments() + 1);  // Increment right after processing
                 
+                // Try to move to next document
+                boolean moved = handleNavigation();
+                if (!moved) {
+                    logger.info("Navigation failed - processing complete after {} documents", 
+                        stats.getProcessedDocuments());
+                    // Set final count and break out
+                    stats.setTotalDocuments(stats.getProcessedDocuments());
+                    break;
+                }
             } catch (Exception e) {
-                handleProcessingError(i + 1, e);
+                handleProcessingError(stats.getProcessedDocuments() + 1, e);
+                logger.warn("Error during processing - will treat as end of documents");
+                stats.setTotalDocuments(stats.getProcessedDocuments());
+                break;
             }
         }
     
@@ -175,9 +177,7 @@ public class DocumentProcessor {
     
         if (documentNumber < stats.getTotalDocuments()) {
             handleNavigation();
-        } else {
-            logger.info("Reached final document - processing complete");
-        }
+        } 
     }
 
     /**
@@ -238,15 +238,14 @@ public class DocumentProcessor {
 
     /**
      * Handles inter-document navigation using the appropriate strategy.
-     * Selects between basic and scrollbar-based navigation based on
-     * processing progress and system capabilities.
+     * Returns true if navigation was successful, false if we've reached the end
+     * or maximum attempts were exhausted.
      *
-     * The method implements performance optimization by:
-     * - Using simpler verification for early documents
-     * - Employing scrollbar tracking for later documents
-     * - Providing automatic fallback to basic navigation
+     * @return boolean indicating if navigation was successful
+     * @throws FindFailed if a critical navigation error occurs
+     * @throws InterruptedException if navigation is interrupted
      */
-    private void handleNavigation() throws FindFailed, InterruptedException {
+    private boolean handleNavigation() throws FindFailed, InterruptedException {
         long startTime = System.currentTimeMillis();
         logger.info("Navigation started at: {}", startTime);
         
@@ -262,14 +261,17 @@ public class DocumentProcessor {
                 logger.info("Popup detected before navigation - handling");
                 popupHandler.dismissPopup(false);
                 Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
-                continue;  // Retry navigation attempt
+                continue;
             }
     
             // Determine navigation mode
             if (stats.getProcessedDocuments() < ApplicationConfig.MIN_DOCUMENTS_FOR_SCROLLBAR) {
                 try {
-                    performBasicNavigation();
-                    return;  // Success!
+                    // Only press Down once for basic navigation
+                    automator.navigateDown();
+                    Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                    verifyBasicNavigation();
+                    return true;  // Success!
                 } catch (FindFailed e) {
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected after basic navigation failure - handling");
@@ -281,74 +283,72 @@ public class DocumentProcessor {
                 }
             }
     
+            // Initial navigation - only press Down once
+            automator.navigateDown();
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+    
             // Scrollbar tracking mode
             if (!uiHandler.startDocumentTracking()) {
                 logger.warn("Scrollbar tracking failed - falling back to basic navigation");
                 try {
-                    performBasicNavigation();
-                    return;  // Success!
+                    verifyBasicNavigation();
+                    return true;
                 } catch (FindFailed e) {
                     if (popupHandler.isPopupPresent()) {
                         logger.info("Popup detected during fallback navigation - handling");
                         popupHandler.dismissPopup(false);
                         Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
-                        continue;  // Retry navigation
+                        continue;
                     }
                     throw e;
                 }
             }
     
             int verificationAttempts = 0;
-            
             while (verificationAttempts < ApplicationConfig.MAX_VERIFICATION_ATTEMPTS) {
                 verificationAttempts++;
                 logger.info("Navigation verification attempt {} of {}", 
                     verificationAttempts, ApplicationConfig.MAX_VERIFICATION_ATTEMPTS);
                 
-                // Attempt navigation
-                automator.navigateDown();
-            
-                // Verify success
+                // Just verify, don't navigate again!
                 if (uiHandler.verifyDocumentLoaded(ApplicationConfig.NAVIGATION_VERIFY_TIMEOUT)) {
                     logger.info("Navigation successful on verification attempt {}", verificationAttempts);
-                    return;  // Success!
+                    return true;
                 }
             
-                // Check for popup if verification failed
                 if (popupHandler.isPopupPresent()) {
                     logger.info("Popup detected during verification - handling and retrying");
                     popupHandler.dismissPopup(false);
                     Thread.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
-                    verificationAttempts--;  // Don't count popup interruptions
+                    verificationAttempts--;
                     continue;
                 }
             
-                // If verification failed without popup, brief pause before retry
                 logger.warn("Navigation verification failed without popup - retrying");
                 Thread.sleep(ApplicationConfig.VERIFICATION_DELAY_MS);
             }
             
-            // If we've exhausted all verification attempts
-            throw new FindFailed("Navigation verification failed after " + 
-                ApplicationConfig.MAX_VERIFICATION_ATTEMPTS + " attempts without popup interference");
+            // If we've exhausted all verification attempts for this navigation
+            logger.info("Navigation verification failed after {} verification attempts", 
+                ApplicationConfig.MAX_VERIFICATION_ATTEMPTS);
         }
+        
+        // If we've exhausted all navigation attempts
+        logger.info("Navigation failed after {} attempts", attempts);
+        return false;
     }
     
     /**
-     * Provides basic document-to-document navigation functionality.
-     * Used for initial documents and as a fallback when optimized
-     * navigation is unavailable or fails.
+     * Verifies document selection using the selection border.
+     * Used for initial documents and as a fallback when scrollbar tracking fails.
      */
-    private void performBasicNavigation() throws FindFailed {
-        automator.navigateDown();
+    private boolean verifyBasicNavigation() throws FindFailed {
         Match match = uiHandler.waitForStableElement(
             automator.getSelectionBorderPattern(),
             ApplicationConfig.DIALOG_TIMEOUT
         );
         
-        if (match == null) {
-            throw new FindFailed("Failed to verify document after basic navigation");
-        }
+        return match != null;
     }
 
     /**

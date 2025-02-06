@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.ui.UiStateHandler;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.
@@ -39,7 +40,8 @@ public class SystmOneAutomator {
     private final Region systmOneWindow;
     private final PopupHandler popupHandler;
     private final SearchRegions searchRegions;
-    private final PrinterConfigurationHandler printerConfigHandler;  // Add this field
+    private final PrinterConfigurationHandler printerConfigHandler;
+    private final UiStateHandler uiStateHandler;
 
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
@@ -63,7 +65,15 @@ public class SystmOneAutomator {
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
-        
+
+        // Initialize UI state handler with required components
+        this.uiStateHandler = new UiStateHandler(
+            searchRegions.getSelectionBorderRegion(),  // uiRegion
+            systmOneWindow,                            // mainWindow
+            selectionBorderPattern,                    // selectionBorderPattern
+            popupHandler                               // popupHandler
+        );
+            
         // Initialize printer configuration handler
         this.printerConfigHandler = new PrinterConfigurationHandler(
             systmOne,
@@ -115,65 +125,15 @@ public class SystmOneAutomator {
     }
 
     /**
-     * Extracts and returns the total document count from the UI using OCR.
-     * Searches for the text "Documents" and extracts the associated number.
+     * Determines the total number of documents by tracking UI movement.
      * 
      * @return The document count, or -1 if count cannot be determined
      */
     public int getDocumentCount() {
         try {
-            Settings.OcrTextRead = true;
-            Settings.OcrTextSearch = true;
-            
-            Region searchRegion = searchRegions.getDocumentCountRegion();
-            Match textMatch = searchRegion.findText("Doc");  // Search for shorter text to be safer
-            
-            if (textMatch == null) {
-                logger.error("Could not find 'Doc' text in expected region");
-                return -1;
-            }
-            
-            // Create our text capture region
-            Region numberRegion = new Region(
-                textMatch.x - 60,
-                textMatch.y,
-                80,
-                textMatch.h
-            );
-            
-            String rawText = numberRegion.text().trim();
-            logger.debug("Raw OCR text found: '{}'", rawText);
-            
-            // More flexible pattern that handles partial matches
-            // This will match numbers followed by any text starting with "Doc"
-            java.util.regex.Pattern numberPattern = java.util.regex.Pattern.compile("(\\d+)\\s*Doc\\w*");
-            java.util.regex.Matcher matcher = numberPattern.matcher(rawText);
-            
-            if (matcher.find()) {
-                String numberStr = matcher.group(1);
-                int detectedCount = Integer.parseInt(numberStr);
-                
-                // Handle border interference
-                if (numberStr.startsWith("1")) {
-                    String potentialRealCount = numberStr.substring(1);
-                    int countWithoutBorder = Integer.parseInt(potentialRealCount);
-                    
-                    if (countWithoutBorder > 0 && detectedCount > 999) {
-                        logger.debug("Detected border interference: {} -> {}", 
-                                   detectedCount, countWithoutBorder);
-                        return countWithoutBorder;
-                    }
-                }
-                
-                return detectedCount;
-            }
-            
-            // If we didn't match our pattern, log the exact text we found to help with debugging
-            logger.error("Could not extract number from text: '{}' - no matching pattern", rawText);
-            return -1;
-            
+            return uiStateHandler.determineDocumentCount();  // Use the instance
         } catch (Exception e) {
-            logger.error("Error getting document count using OCR: " + e.getMessage(), e);
+            logger.error("Error getting document count: " + e.getMessage(), e);
             return -1;
         }
     }

@@ -118,28 +118,44 @@ public class UiStateHandler {
             logger.error("Cannot start tracking - scrollbar region not initialized");
             return false;
         }
-    
+
         try {
             // First, let any ongoing UI updates settle
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
             // Take multiple readings to ensure we have a stable starting position
             Rectangle position1 = findScrollbarThumb(fixedScrollbarRegion);
-            Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
-            Rectangle position2 = findScrollbarThumb(fixedScrollbarRegion);
+            if (position1 == null) {
+                logger.error("Could not find initial thumb position");
+                return false;
+            }
+
+            // Wait between readings to ensure stability
+            Thread.sleep(ApplicationConfig.VERIFICATION_DELAY_MS);
             
-            if (position1 == null || position2 == null) {
-                logger.error("Failed to establish stable baseline position");
+            Rectangle position2 = findScrollbarThumb(fixedScrollbarRegion);
+            if (position2 == null) {
+                logger.error("Could not find confirmation thumb position");
                 return false;
             }
-    
-            // Verify positions are stable before setting baseline
-            if (position1.y != position2.y) {
-                logger.warn("Unstable thumb position detected: y1={}, y2={}", 
-                    position1.y, position2.y);
+
+            // Take a third reading for extra confidence
+            Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+            
+            Rectangle position3 = findScrollbarThumb(fixedScrollbarRegion);
+            if (position3 == null) {
+                logger.error("Could not find final thumb position");
                 return false;
             }
-    
+
+            // Verify all positions are stable
+            if (position1.y != position2.y || position2.y != position3.y) {
+                logger.warn("Unstable thumb positions detected: y1={}, y2={}, y3={}", 
+                    position1.y, position2.y, position3.y);
+                return false;
+            }
+
+            // If we got here, position is stable
             baselineThumbPosition = position1;
             isTrackingStarted = true;
             
@@ -150,6 +166,69 @@ public class UiStateHandler {
         } catch (Exception e) {
             logger.error("Error starting document tracking: {}", e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Counts total documents by tracking UI element movement.
+     * Uses scrollbar position or selection border movement to validate navigation.
+     * 
+     * @return Total number of documents found, or -1 if counting fails
+     */
+    public int determineDocumentCount() {
+        boolean hasScrollbar = initializeScrollbarTracking(selectionBorderPattern);
+        int documentCount = 1; // Start at 1 for current document
+        int failedMoveAttempts = 0;
+        Rectangle lastPosition = null;
+        
+        try {
+            // Get initial selection border position
+            Match initialMatch = quickMatchCheck(selectionBorderPattern);
+            if (initialMatch == null) {
+                logger.error("Could not find initial selection border");
+                return -1;
+            }
+            lastPosition = new Rectangle(initialMatch.x, initialMatch.y, initialMatch.w, initialMatch.h);
+            
+            while (failedMoveAttempts < 3) { // Stop after 3 failed attempts
+                // Attempt navigation
+                mainWindow.type(Key.DOWN);
+                Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
+                
+                // Check for movement
+                boolean moved = false;
+                
+                if (hasScrollbar) {
+                    // Check scrollbar movement
+                    Rectangle newThumbPos = findScrollbarThumb(fixedScrollbarRegion);
+                    if (newThumbPos != null && (lastPosition == null || newThumbPos.y != lastPosition.y)) {
+                        moved = true;
+                        lastPosition = newThumbPos;
+                    }
+                }
+                
+                // Always verify with selection border
+                Match currentMatch = quickMatchCheck(selectionBorderPattern);
+                if (currentMatch != null && 
+                    (currentMatch.y != lastPosition.y || currentMatch.x != lastPosition.x)) {
+                    moved = true;
+                    lastPosition = new Rectangle(currentMatch.x, currentMatch.y, currentMatch.w, currentMatch.h);
+                }
+                
+                if (moved) {
+                    documentCount++;
+                    failedMoveAttempts = 0;
+                } else {
+                    failedMoveAttempts++;
+                }
+            }
+            
+            logger.info("Document count determined: {}", documentCount);
+            return documentCount;
+            
+        } catch (Exception e) {
+            logger.error("Error determining document count: {}", e.getMessage());
+            return -1;
         }
     }
         
@@ -337,12 +416,13 @@ public class UiStateHandler {
             logger.error("Document tracking not started");
             return false;
         }
-
+    
         try {
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
             Rectangle initialBaseline = baselineThumbPosition;
             int loopCount = 0;
+            boolean foundThumbWithNoMovement = false;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
                 loopCount++;
@@ -354,19 +434,26 @@ public class UiStateHandler {
                     popupHandler.dismissPopup(false);
                     continue;
                 }
-
-                // Check thumb position
+    
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
                     logger.debug("Loop {}: No thumb found at {}", loopCount, System.currentTimeMillis());
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     continue;
                 }
-
+                
+                logger.info("Found thumb - calculating movement from y={} to y={}", 
+                    initialBaseline.y, newPosition.y);  // Add this explicit log
+                
                 // Verify scrollbar movement
                 int movement = newPosition.y - initialBaseline.y;
-                logger.debug("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
-                
+                logger.info("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
+
+                if (movement == 0) {
+                    logger.info("No movement detected");
+                    return false;  // No movement means we've hit the end
+                }
+
                 if (movement > 0) {
                     // Confirm movement is stable
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
@@ -379,15 +466,26 @@ public class UiStateHandler {
                     }
                     logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
                 }
-
+                
+                // Confirm movement is stable
+                Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
+                Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
+                if (confirmPosition != null && confirmPosition.y > initialBaseline.y) {
+                    long totalTime = System.currentTimeMillis() - startTime;
+                    logger.info("Document load verification took: {} ms after {} loops", totalTime, loopCount);
+                    isTrackingStarted = false;
+                    return true;
+                }
+                logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
+    
                 long loopTime = System.currentTimeMillis() - loopStartTime;
                 logger.debug("Loop {}: Took {} ms", loopCount, loopTime);
             }
-
-            logger.warn("Document load verification timed out after {} ms and {} loops", 
-                System.currentTimeMillis() - startTime, loopCount);
+    
+            logger.warn("Document load verification timed out after {} ms and {} loops. Found thumb but no movement: {}", 
+                System.currentTimeMillis() - startTime, loopCount, foundThumbWithNoMovement);
             return false;
-
+    
         } catch (Exception e) {
             logger.error("Verification error: {}", e.getMessage());
             return false;
