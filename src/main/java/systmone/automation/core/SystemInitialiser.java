@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
+import systmone.automation.util.LogManager;
 
 /**
  * Manages the complete initialization sequence for the SystmOne automation system.
@@ -49,7 +50,7 @@ public class SystemInitialiser {
      *         or a detailed error message if initialization fails
      */
     public InitialisationResult initialise() {
-        try {
+        try { 
             // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
                 return InitialisationResult.failed("Image library initialization failed");

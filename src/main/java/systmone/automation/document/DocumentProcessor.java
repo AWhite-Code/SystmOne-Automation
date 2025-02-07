@@ -87,6 +87,7 @@ public class DocumentProcessor {
      * @return ProcessingStats containing detailed processing results
      */
     public ProcessingStats processDocuments() {
+        System.out.println("DocumentProcessor: Starting document processing");
         logger.info("Starting document processing workflow");
         
         // Remove pre-counting since we're counting as we go
@@ -119,6 +120,7 @@ public class DocumentProcessor {
                 stats.getProcessedDocuments());
         }
 
+        System.out.println("DocumentProcessor: Processing completed, updating log with final count: " + stats.getTotalDocuments());
         LogManager.updateDocumentCount(stats.getTotalDocuments());
     
         return stats;

@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import systmone.automation.document.DocumentProcessor;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.state.ProcessingStats;
+import systmone.automation.util.LogManager;
 import systmone.automation.util.SummaryGenerator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,10 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * - Handles different operational modes (test/production)
  * - Ensures graceful shutdown and cleanup
  * - Coordinates summary generation and reporting
- * 
- * The application supports two operational modes:
- * 1. Production Mode: Processes all documents with full error tracking
- * 2. Test Mode: Runs simplified operations for popup handling verification
  * 
  * The workflow is designed to maintain stability through:
  * - Comprehensive error handling at all stages
@@ -52,7 +49,9 @@ public class Application {
      * @param args Command line arguments (not currently used)
      */
     public static void main(String[] args) {
-        logger.info("Starting SystmOne Document Processing Application");
+        
+        LogManager.initializeLogging();
+        
         ProcessingStats stats = null;
 
         try {
