@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
-import systmone.automation.util.LogManager;
 
 /**
  * Manages the complete initialization sequence for the SystmOne automation system.

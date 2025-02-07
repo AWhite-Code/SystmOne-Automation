@@ -3,13 +3,11 @@ package systmone.automation.ui;
 import java.util.concurrent.TimeUnit;
 
 import org.sikuli.script.*;
-import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 import systmone.automation.config.ApplicationConfig;
-import systmone.automation.ui.UiStateHandler;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.

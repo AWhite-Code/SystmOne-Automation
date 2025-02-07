@@ -11,7 +11,6 @@ import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
 
 import systmone.automation.config.ApplicationConfig;
-import systmone.automation.config.LoggingConfig;
 import systmone.automation.state.UILoggingState;
 
 /**

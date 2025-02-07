@@ -11,7 +11,7 @@
 
     <!-- File appender with custom naming -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <!-- This will be set programmatically -->
+        <!-- To be set programmatically -->
         <file>${LOG_PATH}/${CURRENT_MONTH}/${LOG_FILENAME}.log</file>
         
         <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
