@@ -12,19 +12,17 @@ import java.time.format.DateTimeFormatter;
 
 public class LogManager {
     private static final String LOG_BASE_PATH = "logs";
+    private static LoggerContext context;
 
-    public static void initializeLogging(int documentCount) {
+    public static void initializeLogging() {
         try {
-            // Set document count for file naming
-            LogFileNameCreator.setDocumentCount(documentCount);
-
             // Create monthly directory structure
             String monthYear = LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMMM_yyyy"));
             Path monthlyPath = Paths.get(LOG_BASE_PATH, monthYear);
             Files.createDirectories(monthlyPath);
 
-            // Update Logback configuration
-            LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+            // Initialize Logback configuration
+            context = (LoggerContext) LoggerFactory.getILoggerFactory();
             context.putProperty("CURRENT_MONTH", monthYear);
             context.putProperty("LOG_FILENAME", LogFileNameCreator.getCurrentFileName());
 
@@ -38,6 +36,14 @@ public class LogManager {
         } catch (Exception e) {
             System.err.println("Failed to initialize logging: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    // Update log filename when document count is finalized
+    public static void updateDocumentCount(int count) {
+        if (context != null) {
+            LogFileNameCreator.setDocumentCount(count);
+            context.putProperty("LOG_FILENAME", LogFileNameCreator.getCurrentFileName());
         }
     }
 }

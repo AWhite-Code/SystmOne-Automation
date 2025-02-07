@@ -118,6 +118,8 @@ public class DocumentProcessor {
             logger.info("Processing terminated by kill switch after {} documents", 
                 stats.getProcessedDocuments());
         }
+
+        LogManager.updateDocumentCount(stats.getTotalDocuments());
     
         return stats;
     }

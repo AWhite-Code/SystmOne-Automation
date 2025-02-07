@@ -41,7 +41,6 @@ public class PrinterConfigurationHandler {
     }
 
     // TODO: IMPLEMENT POP UP HANDLING HERE
-    // TODO: IMPLEMENT 1 DOWN ARROWS TO SELECT NO OCR VERSION
     
     /**
      * Main entry point for printer configuration. Orchestrates the entire process
