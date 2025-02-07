@@ -40,11 +40,13 @@ public class ApplicationConfig {
     public static final int MAX_SAVE_ATTEMPTS = 3;           // Maximum attempts for save operation
     public static final int MAX_NAVIGATION_ATTEMPTS = 3;     // Maximum attempts for navigation
     public static final int MAX_VERIFICATION_ATTEMPTS = 3;    // Maximum attempts to verify document loaded
+    public static final int DEFAULT_RETRY_ATTEMPTS = 3;      // Default retry attempt for all programs
     
     // Popup handling delays
     public static final int POPUP_CLEANUP_DELAY_MS = 200;    // Delay after dismissing popup
     public static final int MENU_CLEANUP_DELAY_MS = 300;     // Delay after closing stuck menu
     public static final int POST_CLEANUP_DELAY_MS = 500;     // Delay after full cleanup sequence
+    public static final int DEFAULT_RETRY_DELAY_MS = 100;    // Delay for all non specific processes
 
     // Navigation timing configurations
     public static final int NAVIGATION_VERIFY_TIMEOUT = 5;    // Timeout for navigation verification (seconds)
