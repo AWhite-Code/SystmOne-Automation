@@ -27,32 +27,31 @@ public class LogManager {
         }
 
         try {
-            // Stop any existing logging
-            LoggerContext existingContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-            existingContext.stop();
-
-            // Set up our properties first
             currentMonthYear = LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMMM_yyyy"));
-            currentFileName = "In Progress";
+            
+            // Get the initial filename with timestamp from LogFileNameCreator
+            String initialFileName = LogFileNameCreator.getCurrentFileName();
             
             // Create directory
             Path monthlyPath = Paths.get(LOG_BASE_PATH, currentMonthYear);
             Files.createDirectories(monthlyPath);
 
-            // Get fresh context
+            // Get fresh context and configure
             context = (LoggerContext) LoggerFactory.getILoggerFactory();
+            context.stop();
             
-            // Configure properties before reset
-            configureContextProperties();
-            
-            // Now configure
+            // Set these properties BEFORE configuring
+            context.putProperty("LOG_PATH", LOG_BASE_PATH);
+            context.putProperty("CURRENT_MONTH", currentMonthYear);
+            context.putProperty("LOG_FILENAME", initialFileName);
+
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(context);
             configurator.doConfigure(LogManager.class.getResource("/logback.xml"));
             
+            context.start();
             isInitialized = true;
             
-            // Test log
             Logger logger = LoggerFactory.getLogger(LogManager.class);
             logger.info("Logging system initialized in: {}", currentMonthYear);
             

@@ -34,31 +34,33 @@ public class LogFileNameCreator {
             return currentFileName;
         }
     }
-
+    
     private static void createNewFileName() {
         synchronized (lock) {
             String date = startTime.format(DateTimeFormatter.ofPattern("d.M.yy"));
             String time = startTime.format(DateTimeFormatter.ofPattern("HH.mm.ss"));
             
-            String newFileName;
-            if (documentCount > 0) {
-                newFileName = String.format("%s - %s - %d Documents", date, time, documentCount);
-            } else {
-                newFileName = String.format("%s - %s - %s", date, time, IN_PROGRESS_MARKER);
-            }
+            String newFileName = String.format("%s - %s - %s", 
+                date, 
+                time, 
+                documentCount > 0 ? documentCount + " Documents" : IN_PROGRESS_MARKER
+            );
             
             System.out.println("Created new filename: " + newFileName);
             currentFileName = newFileName;
             
-            // Create a test file to verify write permissions
-            try {
-                Path testPath = Paths.get("logs", "test.txt");
-                java.nio.file.Files.writeString(testPath, "Test file creation at " + LocalDateTime.now());
-                System.out.println("Successfully created test file at: " + testPath.toAbsolutePath());
-                java.nio.file.Files.delete(testPath);
-            } catch (Exception e) {
-                System.err.println("Warning: Could not create test file: " + e.getMessage());
-            }
+            verifyWritePermissions();
+        }
+    }
+
+    private static void verifyWritePermissions() {
+        try {
+            Path testPath = Paths.get("logs", "test.txt");
+            java.nio.file.Files.writeString(testPath, "Test file creation at " + LocalDateTime.now());
+            System.out.println("Successfully created test file at: " + testPath.toAbsolutePath());
+            java.nio.file.Files.delete(testPath);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not create test file: " + e.getMessage());
         }
     }
 }
