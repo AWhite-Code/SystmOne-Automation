@@ -3,6 +3,7 @@ package systmone.automation.ui;
 import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.Robot;
@@ -316,12 +317,10 @@ public class UiStateHandler {
      * @return Rectangle representing thumb bounds if found, null otherwise
      */
     private Rectangle findScrollbarThumb(Region searchRegion) {
-        long startTime = System.currentTimeMillis();
         try {
             // Determine scan coordinates
             int scanX = scrollbarX > 0 ? scrollbarX : searchRegion.x + (searchRegion.w / 2);
-            logger.info("Scanning at x={} from y={} to {}", 
-                scanX, searchRegion.y, searchRegion.y + searchRegion.h);
+            logger.debug("Starting scrollbar scan at x={}", scanX);
     
             // Capture vertical strip for analysis
             BufferedImage singlePixel = robot.createScreenCapture(new Rectangle(
@@ -330,19 +329,20 @@ public class UiStateHandler {
                 1,
                 searchRegion.h
             ));
-            logger.info("Screenshot capture took: {} ms", System.currentTimeMillis() - startTime);
-            logger.info("Actual captured image dimensions: {}x{}", 
-                singlePixel.getWidth(), singlePixel.getHeight());
+    
+            // Only log dimension issues if they don't match expectations
+            if (singlePixel.getHeight() != searchRegion.h || singlePixel.getWidth() != 1) {
+                logger.warn("Unexpected image dimensions: {}x{}", 
+                    singlePixel.getWidth(), singlePixel.getHeight());
+            }
     
             // Create debug visualization
-            //long debugStart = System.currentTimeMillis();
             BufferedImage fullScreenshot = robot.createScreenCapture(new Rectangle(
                 scanX - (searchRegion.w / 2),
                 searchRegion.y,
                 searchRegion.w,
                 searchRegion.h
             ));
-            //saveDebugScreenshot(fullScreenshot, searchRegion, "original");
     
             BufferedImage markedScreenshot = new BufferedImage(
                 searchRegion.w,
@@ -354,7 +354,6 @@ public class UiStateHandler {
             g2d.setColor(Color.RED);
     
             // Process pixels to find thumb position
-            long processStart = System.currentTimeMillis();
             int currentRun = 0;
             int longestRun = 0;
             int bestStart = -1;
@@ -378,33 +377,28 @@ public class UiStateHandler {
                     currentRun = 0;
                 }
             }
-            logger.info("Pixel processing took: {} ms", System.currentTimeMillis() - processStart);
     
-            // Finalize debug visualization
-            //g2d.dispose();
-            //saveDebugScreenshot(markedScreenshot, searchRegion, "detected");
-            //logger.info("Debug image processing took: {} ms", System.currentTimeMillis() - debugStart);
-            logger.info("Longest run found: {} pixels starting at y={}", longestRun, bestStart);
-    
-            // Return thumb bounds if valid run found
-            if (longestRun >= ApplicationConfig.MIN_THUMB_MOVEMENT) {
-                Rectangle thumbBounds = new Rectangle(
-                    scanX,
-                    searchRegion.y + bestStart,
-                    1,
-                    longestRun
-                );
-                
-                logger.info("Found thumb at x={}, y={}, height={}", 
-                    scanX, thumbBounds.y, longestRun);
-                
-                return thumbBounds;
+            // Only log run details if no valid thumb found or at debug level
+            if (longestRun < ApplicationConfig.MIN_THUMB_MOVEMENT) {
+                logger.debug("No valid thumb found - longest run {} pixels at y={}", 
+                    longestRun, bestStart);
+                return null;
             }
     
-            return null;
+            Rectangle thumbBounds = new Rectangle(
+                scanX,
+                searchRegion.y + bestStart,
+                1,
+                longestRun
+            );
+            
+            // Single informative log about the found position
+            logger.info("Thumb detected at y={} (height={})", thumbBounds.y, longestRun);
+            
+            return thumbBounds;
             
         } catch (Exception e) {
-            logger.error("Error finding scrollbar thumb: {}", e.getMessage());
+            logger.error("Scrollbar scan failed: {}", e.getMessage());
             return null;
         }
     }
@@ -421,44 +415,35 @@ public class UiStateHandler {
             logger.error("Document tracking not started");
             return false;
         }
-
+    
         try {
             long startTime = System.currentTimeMillis();
             long timeoutMs = (long)(timeout * 1000);
             Rectangle initialBaseline = baselineThumbPosition;
-            int loopCount = 0;
             int noMovementCount = 0;
             
             while (System.currentTimeMillis() - startTime < timeoutMs) {
-                loopCount++;
-                long loopStartTime = System.currentTimeMillis();
-                
                 // Handle any popup dialogs
                 if (popupHandler.isPopupPresent()) {
-                    logger.debug("Loop {}: Popup check at {}", loopCount, loopStartTime);
                     popupHandler.dismissPopup(false);
                     continue;
                 }
     
                 Rectangle newPosition = findScrollbarThumb(fixedScrollbarRegion);
                 if (newPosition == null) {
-                    logger.debug("Loop {}: No thumb found at {}", loopCount, System.currentTimeMillis());
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     continue;
                 }
                 
-                logger.info("Found thumb - calculating movement from y={} to y={}", 
-                    initialBaseline.y, newPosition.y);  // Add this explicit log
-                
-                // Verify scrollbar movement
+                // Calculate and log significant movements only
                 int movement = newPosition.y - initialBaseline.y;
-                logger.info("Loop {}: Movement {} pixels at {}", loopCount, movement, System.currentTimeMillis());
-
-
+                loggingState.logMovementIfSignificant(newPosition.y, Level.DEBUG, 
+                    "Scrollbar movement: {}px from baseline", movement);
+    
                 if (movement == 0) {
                     noMovementCount++;
-                    if (noMovementCount >= 3) {  // After 3 consecutive no-movement detections, we're done
-                        logger.info("No movement detected after {} consecutive checks - ending verification", noMovementCount);
+                    if (noMovementCount >= 3) {
+                        logger.info("Document verification complete - no movement detected");
                         return false;
                     }
                 } else if (movement > 0) {
@@ -466,24 +451,22 @@ public class UiStateHandler {
                     // Confirm movement is stable
                     Thread.sleep(ApplicationConfig.POLL_INTERVAL_MS);
                     Rectangle confirmPosition = findScrollbarThumb(fixedScrollbarRegion);
+                    
                     if (confirmPosition != null && confirmPosition.y > initialBaseline.y) {
                         long totalTime = System.currentTimeMillis() - startTime;
-                        logger.info("Document load verification took: {} ms after {} loops", totalTime, loopCount);
+                        logger.info("Document loaded successfully after {}ms", totalTime);
                         isTrackingStarted = false;
                         return true;
                     }
-                    logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
                 }
-                
-                logger.debug("Loop {}: Movement verification failed at {}", loopCount, System.currentTimeMillis());
-    
-                long loopTime = System.currentTimeMillis() - loopStartTime;
-                logger.debug("Loop {}: Took {} ms", loopCount, loopTime);
             }
+            
+            logger.warn("Document load verification timed out after {}ms", 
+                System.currentTimeMillis() - startTime);
             return false;
     
         } catch (Exception e) {
-            logger.error("Verification error: {}", e.getMessage());
+            logger.error("Document verification failed: {}", e.getMessage());
             return false;
         }
     }
