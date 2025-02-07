@@ -116,15 +116,12 @@ public class PrinterConfigurationHandler {
     private Match selectInitialDocument() throws FindFailed {
         logger.info("Looking for document to configure printer...");
         
-        // Update state
         popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
         
-        // Check for popups before selection
         if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
             return null;
         }
         
-        // Use retry handler for document selection
         return popupHandler.getRetryHandler().executeWithRetry(
             () -> {
                 try {
@@ -136,10 +133,20 @@ public class PrinterConfigurationHandler {
                         return false;
                     }
                     
-                    // Store the match for return after the retry operation
-                    this.currentDocumentMatch = documentMatch;
+                    // Move mouse to the center of the matched region and click
+                    documentMatch.click();
                     
-                    // Verify no popups appeared during selection
+                    // Verify the click was successful by checking pattern again
+                    Match verificationMatch = searchRegions.getSelectionBorderRegion()
+                        .exists(selectionBorderPattern);
+                        
+                    if (verificationMatch == null) {
+                        logger.error("Failed to verify document selection after click");
+                        return false;
+                    }
+                    
+                    this.currentDocumentMatch = verificationMatch;
+                    
                     if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
                         return false;
                     }
@@ -153,7 +160,7 @@ public class PrinterConfigurationHandler {
             },
             null,
             "document selection"
-        ) ? currentDocumentMatch : null; // Return the stored match if successful
+        ) ? currentDocumentMatch : null;
     }
 
     /**
