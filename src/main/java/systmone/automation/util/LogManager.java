@@ -6,12 +6,10 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -106,30 +104,35 @@ public class LogManager {
             configurator.doConfigure(LogManager.class.getResource("/logback.xml"));
             
             context.start();
+            cleanupUndefinedLogs();
 
         } catch (Exception e) {
             System.err.println("Failed to update log filename: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
-    private static void createEmergencyLog(Exception e) {
+
+    private static void cleanupUndefinedLogs() {
         try {
-            Path emergencyPath = Paths.get("emergency_logs.txt");
-            String logContent = String.format(
-                "Emergency log created at %s%n" +
-                "Initialization error: %s%n" +
-                "Current classpath: %s%n" +
-                "SLF4J binding: %s%n",
-                LocalDateTime.now(),
-                e.getMessage(),
-                System.getProperty("java.class.path"),
-                LoggerFactory.getILoggerFactory().getClass().getName()
-            );
-            Files.writeString(emergencyPath, logContent);
-            System.err.println("Created emergency log at: " + emergencyPath.toAbsolutePath());
-        } catch (Exception ex) {
-            System.err.println("Failed to create emergency log: " + ex.getMessage());
+            // Path to the undefined directory
+            Path undefinedDir = Paths.get(LOG_BASE_PATH, "CURRENT_MONTH_IS_UNDEFINED");
+            
+            // Only attempt cleanup if the directory exists
+            if (Files.exists(undefinedDir)) {
+                // Delete any files in the undefined directory
+                Files.list(undefinedDir).forEach(file -> {
+                    try {
+                        Files.delete(file);
+                    } catch (IOException e) {
+                        System.err.println("Failed to delete file: " + file);
+                    }
+                });
+                
+                // Delete the empty directory
+                Files.delete(undefinedDir);
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to cleanup undefined logs: " + e.getMessage());
         }
     }
 }
