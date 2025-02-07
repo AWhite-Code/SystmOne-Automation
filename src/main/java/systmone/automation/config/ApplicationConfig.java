@@ -41,6 +41,8 @@ public class ApplicationConfig {
     public static final int MAX_NAVIGATION_ATTEMPTS = 3;     // Maximum attempts for navigation
     public static final int MAX_VERIFICATION_ATTEMPTS = 3;    // Maximum attempts to verify document loaded
     public static final int DEFAULT_RETRY_ATTEMPTS = 3;      // Default retry attempt for all programs
+    public static final int PRINTER_CONFIG_MAX_ATTEMPTS = 3;     // Maximum attempts for printer configuration operations
+    public static final long PRINTER_CONFIG_RETRY_DELAY_MS = 1000;  // Delay between printer config retry attempts
     
     // Popup handling delays
     public static final int POPUP_CLEANUP_DELAY_MS = 200;    // Delay after dismissing popup

@@ -44,6 +44,7 @@ public class SystmOneAutomator {
     // UI pattern matchers
     private final Pattern selectionBorderPattern;
     private final Pattern saveDialogPattern;
+    private final Pattern popupPattern;
 
     /**
      * Creates a new SystmOne automation controller with standardized patterns.
@@ -58,33 +59,34 @@ public class SystmOneAutomator {
         // Initialize search regions before patterns
         this.searchRegions = new SearchRegions(systmOneWindow);
         
-        // Initialize patterns with location-specific names
+        // Initialize all patterns with location-specific names
         this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
+        this.popupPattern = initializePattern("question_popup_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
-
+    
         // Initialize UI state handler with required components
         this.uiStateHandler = new UiStateHandler(
-            searchRegions.getSelectionBorderRegion(),  // uiRegion
-            systmOneWindow,                            // mainWindow
-            selectionBorderPattern,                    // selectionBorderPattern
-            popupHandler                               // popupHandler
+            searchRegions.getSelectionBorderRegion(),
+            systmOneWindow,
+            selectionBorderPattern,
+            popupHandler
         );
             
-        // Initialize printer configuration handler
+        // Initialize printer configuration handler with all required components
         this.printerConfigHandler = new PrinterConfigurationHandler(
             systmOne,
             systmOneWindow,
             searchRegions,
-            selectionBorderPattern
+            selectionBorderPattern,
+            popupPattern
         );
         
         if (systmOneWindow == null) {
             throw new FindFailed("Failed to initialize SystmOne window");
         }
     }
-
 
     /**
      * Initializes the SystmOne application instance and verifies its window.

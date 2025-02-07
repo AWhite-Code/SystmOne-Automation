@@ -7,6 +7,8 @@ import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.state.WindowStateManager;
+import systmone.automation.ui.PrinterConfigurationPopupHandler;
 
 /**
  * Handles the configuration of the PDF printer in SystmOne.
@@ -31,17 +33,33 @@ public class PrinterConfigurationHandler {
     private final Region systmOneWindow;
     private final SearchRegions searchRegions;
     private final Pattern selectionBorderPattern;
+    private final Pattern popupPattern;
+    private final WindowStateManager windowManager;
+    private final PrinterConfigurationPopupHandler popupHandler;
+    private Match currentDocumentMatch;
 
-    public PrinterConfigurationHandler(App systmOne, Region systmOneWindow, 
-            SearchRegions searchRegions, Pattern selectionBorderPattern) {
+    public PrinterConfigurationHandler(
+            App systmOne, 
+            Region systmOneWindow, 
+            SearchRegions searchRegions, 
+            Pattern selectionBorderPattern,
+            Pattern popupPattern) {
         this.systmOne = systmOne;
         this.systmOneWindow = systmOneWindow;
         this.searchRegions = searchRegions;
         this.selectionBorderPattern = selectionBorderPattern;
+        this.popupPattern = popupPattern;
+        
+        // Initialize infrastructure components
+        this.windowManager = new WindowStateManager(systmOne);
+        this.popupHandler = new PrinterConfigurationPopupHandler(
+            windowManager,
+            systmOneWindow,
+            popupPattern
+        );
     }
 
-    // TODO: IMPLEMENT POP UP HANDLING HERE
-    
+
     /**
      * Main entry point for printer configuration. Orchestrates the entire process
      * by calling specific methods for each major step.
@@ -50,29 +68,40 @@ public class PrinterConfigurationHandler {
         try {
             logger.info("Starting PDF printer configuration");
             
-            // Step 1: Select document
-            Match documentMatch = selectInitialDocument();
-            if (documentMatch == null) return false;
+            // Set initial state
+            popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
             
-            // Step 2: Open and handle context menu
-            if (!selectNoOCROption(documentMatch)) return false;
+            // Clear any existing popups before starting
+            if (popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                windowManager.returnToMainWindow();
+            }
             
-            // Step 3: Open and handle document update window
-            App scannedDocWindow = openDocumentUpdateWindow();
-            if (scannedDocWindow == null) return false;
-            
-            // Step 4: Open printer settings
-            App printerSettingsWindow = openPrinterSettings(scannedDocWindow);
-            if (printerSettingsWindow == null) return false;
-            
-            // Step 5: Configure printer
-            if (!configurePrinterInSettings(printerSettingsWindow)) return false;
-            
-            // Step 6: Clean up
-            cleanupAndClose(scannedDocWindow);
-            
-            logger.info("Successfully configured PDF printer");
-            return true;
+            // Use retry handler for the entire configuration process
+            return popupHandler.getRetryHandler().executeWithRetry(
+                () -> {
+                    try {
+                        // Step 1: Select document
+                        Match documentMatch = selectInitialDocument();
+                        if (documentMatch == null) return false;
+                        
+                        // Step 2: Open and handle context menu
+                        if (!selectNoOCROption(documentMatch)) return false;
+                        
+                        // Step 3: Open and handle document update window
+                        App scannedDocWindow = openDocumentUpdateWindow();
+                        if (scannedDocWindow == null) return false;
+                        
+                        // Continue with remaining steps...
+                        return true;
+                        
+                    } catch (Exception e) {
+                        logger.error("Error in configuration process: {}", e.getMessage());
+                        return false;
+                    }
+                },
+                this::attemptCleanup,
+                "printer configuration"
+            );
             
         } catch (Exception e) {
             logger.error("Unexpected error in printer configuration: {}", e.getMessage(), e);
@@ -86,15 +115,45 @@ public class PrinterConfigurationHandler {
      */
     private Match selectInitialDocument() throws FindFailed {
         logger.info("Looking for document to configure printer...");
-        Match documentMatch = searchRegions.getSelectionBorderRegion()
-            .wait(selectionBorderPattern, ApplicationConfig.DIALOG_TIMEOUT);
         
-        if (documentMatch == null) {
-            logger.error("Could not find document to configure printer settings");
+        // Update state
+        popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
+        
+        // Check for popups before selection
+        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
             return null;
         }
         
-        return documentMatch;
+        // Use retry handler for document selection
+        return popupHandler.getRetryHandler().executeWithRetry(
+            () -> {
+                try {
+                    Match documentMatch = searchRegions.getSelectionBorderRegion()
+                        .wait(selectionBorderPattern, ApplicationConfig.DIALOG_TIMEOUT);
+                    
+                    if (documentMatch == null) {
+                        logger.error("Could not find document to configure printer settings");
+                        return false;
+                    }
+                    
+                    // Store the match for return after the retry operation
+                    this.currentDocumentMatch = documentMatch;
+                    
+                    // Verify no popups appeared during selection
+                    if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                        return false;
+                    }
+                    
+                    return true;
+                    
+                } catch (FindFailed e) {
+                    logger.error("Error finding document: {}", e.getMessage());
+                    return false;
+                }
+            },
+            null,
+            "document selection"
+        ) ? currentDocumentMatch : null; // Return the stored match if successful
     }
 
     /**
@@ -107,34 +166,62 @@ public class PrinterConfigurationHandler {
      * @throws InterruptedException if the thread is interrupted during delays
      */
     private boolean selectNoOCROption(Match documentMatch) throws FindFailed, InterruptedException {
-        logger.info("Found document, performing right-click...");
+        logger.info("Initiating context menu interaction...");
         
-        try {
-            // Perform right-click on document
-            documentMatch.rightClick();
-            
-            // Wait for context menu to appear
-            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
-            
-            // Create keyboard object for input
-            Screen screen = new Screen();
-            
-            // Send down arrow to highlight the No OCR option
-            screen.type(Key.DOWN);
-            
-            // Short delay to ensure menu item is highlighted
-            TimeUnit.MILLISECONDS.sleep(100);
-            
-            // Press enter to select the highlighted option
-            screen.type(Key.ENTER);
-            
-            logger.info("Successfully selected No OCR option using keyboard navigation");
-            return true;
-            
-        } catch (Exception e) {
-            logger.error("Failed to select No OCR option: {}", e.getMessage());
-            return false;
-        }
+        // Update state
+        popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.CONTEXT_MENU);
+        
+        return popupHandler.getRetryHandler().executeWithRetry(
+            () -> {
+                try {
+                    // Check for popups before right-click
+                    if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                        return false;
+                    }
+                    
+                    // Perform right-click on document
+                    documentMatch.rightClick();
+                    TimeUnit.MILLISECONDS.sleep(ApplicationConfig.CONTEXT_MENU_DELAY_MS);
+                    
+                    // Check for popups after right-click
+                    if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.CONTEXT_MENU)) {
+                        return false;
+                    }
+                    
+                    // Create screen object for keyboard input
+                    Screen screen = new Screen();
+                    
+                    // Navigate menu
+                    screen.type(Key.DOWN);
+                    TimeUnit.MILLISECONDS.sleep(100);
+                    
+                    // Check for popups before final selection
+                    if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.CONTEXT_MENU)) {
+                        return false;
+                    }
+                    
+                    // Make selection
+                    screen.type(Key.ENTER);
+                    
+                    logger.info("Successfully selected No OCR option");
+                    return true;
+                    
+                } catch (Exception e) {
+                    logger.error("Failed to select No OCR option: {}", e.getMessage());
+                    return false;
+                }
+            },
+            () -> {
+                try {
+                    // Ensure context menu is closed on failure
+                    systmOneWindow.type(Key.ESC);
+                    TimeUnit.MILLISECONDS.sleep(ApplicationConfig.MENU_CLEANUP_DELAY_MS);
+                } catch (Exception e) {
+                    logger.warn("Error during context menu cleanup: {}", e.getMessage());
+                }
+            },
+            "context menu interaction"
+        );
     }
 
     /**
