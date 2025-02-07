@@ -10,6 +10,8 @@ import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
 
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.config.LoggingConfig;
+import systmone.automation.state.UILoggingState;
 
 /**
  * Handles UI state verification and stability checking for the SystmOne document processing system.
@@ -35,6 +37,7 @@ public class UiStateHandler {
     private boolean isTrackingStarted;          // Flag to indicate if tracking is active
     private final Region mainWindow;
     private final Pattern selectionBorderPattern;
+    private final UILoggingState loggingState;
 
     /**
      * Initializes a new UI state handler with the specified region and popup handler.
@@ -43,18 +46,20 @@ public class UiStateHandler {
      * @param popupHandler Handler for managing popup dialogs
      * @throws RuntimeException if Robot initialization fails
      */
-    public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, PopupHandler popupHandler) {
-        this.uiRegion = uiRegion;
-        this.mainWindow = mainWindow;
-        this.selectionBorderPattern = selectionBorderPattern;
-        this.popupHandler = popupHandler;
-        
-        try {
-            this.robot = new Robot();
-        } catch (Exception e) {
-            logger.error("Failed to initialize Robot for color detection", e);
-        }
+    public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, 
+    PopupHandler popupHandler) {
+    this.uiRegion = uiRegion;
+    this.mainWindow = mainWindow;
+    this.selectionBorderPattern = selectionBorderPattern;
+    this.popupHandler = popupHandler;
+    this.loggingState = new UILoggingState(logger);
+
+    try {
+    this.robot = new Robot();
+    } catch (Exception e) {
+    logger.error("Failed to initialize Robot for color detection", e);
     }
+}
 
     
     /**
