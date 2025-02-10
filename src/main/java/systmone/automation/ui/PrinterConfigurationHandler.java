@@ -27,6 +27,7 @@ public class PrinterConfigurationHandler {
             SearchRegions searchRegions, 
             Pattern selectionBorderPattern,
             Pattern popupPattern) {
+            
         this.systmOne = systmOne;
         this.systmOneWindow = systmOneWindow;
         this.searchRegions = searchRegions;
@@ -45,17 +46,26 @@ public class PrinterConfigurationHandler {
     public boolean configurePDFPrinter() throws FindFailed {
         try {
             logger.info("Starting PDF printer configuration");
+            int maxAttempts = ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS;
+            int currentAttempt = 0;
             
-            // Set initial state
-            popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
-            
-            // Clear any existing popups before starting
-            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
-                return false;
-            }
-            
-            // Use retry handler for the entire configuration process
-            return popupHandler.getRetryHandler().executeWithRetry(
+            while (currentAttempt < maxAttempts) {
+                currentAttempt++;
+                logger.info("Configuration attempt {} of {}", currentAttempt, maxAttempts);
+                
+                try {
+                    // Set initial state
+                    popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
+                    popupHandler.resetState(); // Reset popup tracking for fresh attempt
+                    
+                    // Clear any existing popups before starting
+                    if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                        logger.warn("Failed to handle initial popup, retrying...");
+                        continue;
+                    }
+                    
+                    // Use retry handler for the configuration process
+                    boolean success = popupHandler.getRetryHandler().executeWithRetry(
                 () -> {
                     try {
                         // Step 1: Select document
@@ -78,8 +88,30 @@ public class PrinterConfigurationHandler {
                 this::attemptCleanup,
                 "printer configuration"
             );
+                    
+                    if (success) {
+                        logger.info("Configuration completed successfully on attempt {}", currentAttempt);
+                        return true;
+                    }
+                    
+                    logger.warn("Configuration attempt {} failed, retrying...", currentAttempt);
+                    attemptCleanup();
+                    TimeUnit.MILLISECONDS.sleep(ApplicationConfig.RETRY_DELAY_MS);
+                    
+                } catch (Exception e) {
+                    logger.error("Error during configuration attempt {}: {}", currentAttempt, e.getMessage());
+                    attemptCleanup();
+                    if (currentAttempt < maxAttempts) {
+                        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.RETRY_DELAY_MS);
+                    }
+                }
+            }
+            
+            logger.error("Configuration failed after {} attempts", maxAttempts);
+            return false;
+            
         } catch (Exception e) {
-            logger.error("Unexpected error in printer configuration: {}", e.getMessage(), e);
+            logger.error("Fatal error in printer configuration: {}", e.getMessage(), e);
             attemptCleanup();
             return false;
         }
@@ -168,8 +200,8 @@ public class PrinterConfigurationHandler {
                     // Create screen object for keyboard input
                     Screen screen = new Screen();
                     
-                    // Navigate menu using up arrow
-                    screen.type(Key.UP);
+                    // Navigate menu using down arrow (corrected from UP)
+                    screen.type(Key.DOWN);
                     TimeUnit.MILLISECONDS.sleep(100);
                     
                     // Check for popups before final selection

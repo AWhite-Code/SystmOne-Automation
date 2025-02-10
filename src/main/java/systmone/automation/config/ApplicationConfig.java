@@ -34,6 +34,7 @@ public class ApplicationConfig {
     public static final int SAVE_DIALOG_DELAY_MS = 3000;
     public static final double DIALOG_TIMEOUT = 10.0; // in seconds
     public static final double MENU_TIMEOUT = 5.0;    // in seconds
+    public static final int RETRY_DELAY_MS = 100;
 
     // Operation retry limits
     public static final int MAX_PRINT_MENU_ATTEMPTS = 3;     // Maximum attempts for print menu operation
