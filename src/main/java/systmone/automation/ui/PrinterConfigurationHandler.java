@@ -79,6 +79,13 @@ public class PrinterConfigurationHandler {
                         App scannedDocWindow = openDocumentUpdateWindow();
                         if (scannedDocWindow == null) return false;
                         
+                        // Step 4: Open and configure printer settings
+                        App printerSettingsWindow = openPrinterSettings(scannedDocWindow);
+                        if (printerSettingsWindow == null) return false;
+                        
+                        // Step 5: Configure printer in settings window
+                        if (!configurePrinterInSettings(printerSettingsWindow)) return false;
+                        
                         return true;
                     } catch (Exception e) {
                         logger.error("Error in configuration process: {}", e.getMessage());
@@ -115,6 +122,31 @@ public class PrinterConfigurationHandler {
             attemptCleanup();
             return false;
         }
+    }
+    
+    private Match openPrinterSettings(Region buttonRegion) throws FindFailed {
+        String[] buttonTextVariations = {
+            "Printer Settings",
+            "PrinterSettings",
+            "Printer",
+            "Settings"
+        };
+        
+        for (String textVariation : buttonTextVariations) {
+            try {
+                logger.debug("Trying to find text: '{}'", textVariation);
+                Match buttonMatch = buttonRegion.waitText(textVariation, 2);
+                if (buttonMatch != null) {
+                    logger.info("Found button using text: '{}'", textVariation);
+                    return buttonMatch;
+                }
+            } catch (FindFailed e) {
+                logger.debug("Did not find text: '{}'", textVariation);
+            }
+        }
+        
+        logger.error("Could not find Printer Settings button");
+        return null;
     }
 
     private Match selectInitialDocument() throws FindFailed {
@@ -273,6 +305,102 @@ public class PrinterConfigurationHandler {
             systmOne.focus();
         } catch (Exception cleanupError) {
             logger.error("Error during cleanup: " + cleanupError.getMessage());
+        }
+    }
+
+    private boolean configurePrinterInSettings(App printerSettingsWindow) throws FindFailed, InterruptedException {
+        Region windowRegion = printerSettingsWindow.window();
+        
+        // Check for popups before starting configuration
+        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+            return false;
+        }
+        
+        // Give the window time to fully render
+        TimeUnit.MILLISECONDS.sleep(1000);
+        
+        logger.info("Looking for printer dropdown in settings window...");
+        
+        // Calculate dimensions on a 5×5 grid for precise positioning
+        int columnWidth = windowRegion.w / 5;   
+        int rowHeight = windowRegion.h / 5;     
+        
+        // Define search region for the dropdown arrow, with a small upward adjustment
+        Region dropdownSearchRegion = new Region(
+            windowRegion.x + (columnWidth * 3),  // Start from 4th column
+            windowRegion.y + rowHeight - 20,     // Start from 2nd row, adjusted up slightly
+            columnWidth * 2,                     // Cover two columns width
+            rowHeight                            // Cover one row height
+        );
+    
+        // Search for the dropdown arrow with reduced similarity threshold
+        Pattern dropdownArrowPattern = new Pattern("dropdown_arrow.png")
+            .similar(0.6f);
+    
+        try {
+            // Check for popups before dropdown interaction
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return false;
+            }
+            
+            Match dropdownMatch = dropdownSearchRegion.find(dropdownArrowPattern);
+            logger.info("Found dropdown at coordinates: ({}, {})", dropdownMatch.x, dropdownMatch.y);
+            
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return false;
+            }
+            
+            dropdownMatch.click();
+            TimeUnit.MILLISECONDS.sleep(500);
+            
+            // Check for popups after dropdown click
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return false;
+            }
+            
+            // Select the PDF printer
+            windowRegion.type("Microsoft Print to PDF");
+            windowRegion.type(Key.ENTER);
+            TimeUnit.MILLISECONDS.sleep(500);
+            
+            // Check for popups after printer selection
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return false;
+            }
+            
+            logger.info("Looking for OK button...");
+            
+            // Define region for OK button in bottom half of window
+            Region buttonRegion = new Region(
+                windowRegion.x,                        
+                windowRegion.y + (windowRegion.h / 2), 
+                windowRegion.w,                        
+                windowRegion.h / 2                     
+            );
+            
+            try {
+                Match okButton = buttonRegion.waitText("Ok", 2);
+                logger.info("Found OK button, clicking...");
+                
+                // Check for popups before clicking OK
+                if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                    return false;
+                }
+                
+                okButton.click();
+                TimeUnit.MILLISECONDS.sleep(500);
+                
+                // Final popup check after clicking OK
+                return popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS);
+                
+            } catch (FindFailed e) {
+                logger.error("Could not find OK button");
+                return false;
+            }
+            
+        } catch (FindFailed e) {
+            logger.error("Could not find dropdown arrow: {}", e.getMessage());
+            return false;
         }
     }
 }
