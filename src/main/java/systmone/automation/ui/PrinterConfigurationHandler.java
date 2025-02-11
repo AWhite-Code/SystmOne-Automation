@@ -85,6 +85,9 @@ public class PrinterConfigurationHandler {
                         
                         // Step 5: Configure printer in settings window
                         if (!configurePrinterInSettings(printerSettingsWindow)) return false;
+
+                        // Step 6: Clean up and close windows
+                        if (!cleanupAndClose(scannedDocWindow)) return false;
                         
                         return true;
                     } catch (Exception e) {
@@ -101,7 +104,7 @@ public class PrinterConfigurationHandler {
                         return true;
                     }
                     
-                    logger.warn("Configuration attempt {} failed, retrying...", currentAttempt);
+                    logger.warn("Configuration attempt {} failed, retrying...");
                     attemptCleanup();
                     TimeUnit.MILLISECONDS.sleep(ApplicationConfig.RETRY_DELAY_MS);
                     
@@ -120,6 +123,44 @@ public class PrinterConfigurationHandler {
         } catch (Exception e) {
             logger.error("Fatal error in printer configuration: {}", e.getMessage(), e);
             attemptCleanup();
+            return false;
+        }
+    }
+
+    /**
+     * Performs cleanup operations by closing windows and returning focus
+     * to the main application window.
+     */
+    private boolean cleanupAndClose(App scannedDocWindow) throws InterruptedException {
+        logger.info("Cleaning up and closing windows...");
+        
+        try {
+            // Check for popups before closing
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                return false;
+            }
+            
+            // Close the Scanned Document Update window
+            if (scannedDocWindow != null && scannedDocWindow.window() != null) {
+                scannedDocWindow.window().type(Key.ESC);
+            }
+            
+            // Give windows time to close
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
+            
+            // Check for any popups that might have appeared during closing
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
+                return false;
+            }
+            
+            // Refocus on SystmOne window
+            systmOne.focus();
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.warn("Error during cleanup: {}", e.getMessage());
             return false;
         }
     }
