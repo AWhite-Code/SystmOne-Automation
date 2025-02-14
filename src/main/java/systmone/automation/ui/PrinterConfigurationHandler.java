@@ -1,6 +1,7 @@
 package systmone.automation.ui;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.script.*;
 import org.sikuli.basics.Settings;
@@ -31,16 +32,20 @@ public class PrinterConfigurationHandler {
     private final Region systmOneWindow;
     private final SearchRegions searchRegions;
     private final Pattern selectionBorderPattern;
+    private final AtomicBoolean killSwitch;
 
-    public PrinterConfigurationHandler(App systmOne, Region systmOneWindow, 
-            SearchRegions searchRegions, Pattern selectionBorderPattern) {
+    public PrinterConfigurationHandler(
+            App systmOne, 
+            Region systmOneWindow, 
+            SearchRegions searchRegions, 
+            Pattern selectionBorderPattern,
+            AtomicBoolean killSwitch) {
         this.systmOne = systmOne;
         this.systmOneWindow = systmOneWindow;
         this.searchRegions = searchRegions;
         this.selectionBorderPattern = selectionBorderPattern;
+        this.killSwitch = killSwitch;
     }
-
-    // TODO: IMPLEMENT POP UP HANDLING HERE
     
     /**
      * Main entry point for printer configuration. Orchestrates the entire process
@@ -50,23 +55,43 @@ public class PrinterConfigurationHandler {
         try {
             logger.info("Starting PDF printer configuration");
             
+            if (killSwitch.get()) {
+                logger.info("Kill switch activated - aborting printer configuration");
+                return false;
+            }
+
             // Step 1: Select document
             Match documentMatch = selectInitialDocument();
-            if (documentMatch == null) return false;
+            if (documentMatch == null || killSwitch.get()) {
+                attemptCleanup();
+                return false;
+            }
             
             // Step 2: Open and handle context menu
-            if (!selectNoOCROption(documentMatch)) return false;
+            if (!selectNoOCROption(documentMatch) || killSwitch.get()) {
+                attemptCleanup();
+                return false;
+            }
             
             // Step 3: Open and handle document update window
             App scannedDocWindow = openDocumentUpdateWindow();
-            if (scannedDocWindow == null) return false;
+            if (scannedDocWindow == null || killSwitch.get()) {
+                attemptCleanup();
+                return false;
+            }
             
             // Step 4: Open printer settings
             App printerSettingsWindow = openPrinterSettings(scannedDocWindow);
-            if (printerSettingsWindow == null) return false;
+            if (printerSettingsWindow == null || killSwitch.get()) {
+                attemptCleanup();
+                return false;
+            }
             
             // Step 5: Configure printer
-            if (!configurePrinterInSettings(printerSettingsWindow)) return false;
+            if (!configurePrinterInSettings(printerSettingsWindow) || killSwitch.get()) {
+                attemptCleanup();
+                return false;
+            }
             
             // Step 6: Clean up
             cleanupAndClose(scannedDocWindow);
@@ -146,6 +171,10 @@ public class PrinterConfigurationHandler {
         
         App scannedDocWindow = null;
         for (int attempt = 1; attempt <= 5; attempt++) {
+            if (killSwitch.get()) {
+                logger.info("Kill switch activated during window search");
+                return null;
+            }
             logger.info("Attempt {} to find window...", attempt);
             
             try {
@@ -191,6 +220,8 @@ public class PrinterConfigurationHandler {
      * Handles the printer configuration in the settings window using text-based detection.
      */
     private boolean configurePrinterInSettings(App printerSettingsWindow) throws FindFailed, InterruptedException {
+        if (killSwitch.get()) return false;
+
         Region windowRegion = printerSettingsWindow.window();
         
         // Give the window time to fully render
@@ -209,7 +240,12 @@ public class PrinterConfigurationHandler {
             columnWidth * 2,                     // Cover two columns width
             rowHeight                            // Cover one row height
         );
-    
+
+        if (killSwitch.get()) {
+            attemptCleanup();
+            return false;
+        }
+        
         // Search for the dropdown arrow with reduced similarity threshold to account for UI variations
         Pattern dropdownArrowPattern = new Pattern("dropdown_arrow.png")
             .similar(0.6f);
@@ -227,6 +263,11 @@ public class PrinterConfigurationHandler {
         // Give the dropdown menu time to appear
         TimeUnit.MILLISECONDS.sleep(500);
         
+        if (killSwitch.get()) {
+            attemptCleanup();
+            return false;
+        }
+
         // Select the PDF printer
         windowRegion.type("Microsoft Print to PDF");
         windowRegion.type(Key.ENTER);
@@ -235,6 +276,13 @@ public class PrinterConfigurationHandler {
         TimeUnit.MILLISECONDS.sleep(500);
         
         logger.info("Looking for OK button...");
+        
+
+        if (killSwitch.get()) {
+            attemptCleanup();
+            return false;
+        }
+
         
         // Define region for OK button in bottom half of window
         Region buttonRegion = new Region(

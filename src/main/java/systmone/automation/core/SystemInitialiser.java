@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.InitialisationResult;
@@ -48,15 +48,15 @@ public class SystemInitialiser {
      * @return InitialisationResult containing either initialized components
      *         or a detailed error message if initialization fails
      */
-    public InitialisationResult initialise() {
-        try { 
+    public InitialisationResult initialise(AtomicBoolean killSwitch) {  // Add parameter here
+        try {
             // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
                 return InitialisationResult.failed("Image library initialization failed");
             }
        
-            // Create automator with standard configuration
-            SystmOneAutomator automator = createAutomator();
+            // Create automator with standard configuration and killswitch
+            SystmOneAutomator automator = createAutomator(killSwitch);  // Pass killSwitch here
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
@@ -169,9 +169,9 @@ public class SystemInitialiser {
      * 
      * @return Configured SystmOneAutomator instance, or null if creation fails
      */
-    private SystmOneAutomator createAutomator() {
+    private SystmOneAutomator createAutomator(AtomicBoolean killSwitch) {
         try {
-            return new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY);
+            return new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY, killSwitch);
         } catch (FindFailed e) {
             logger.error("Failed to create automator: " + e.getMessage());
             return null;

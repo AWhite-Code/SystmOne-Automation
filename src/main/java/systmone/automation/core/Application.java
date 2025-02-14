@@ -40,7 +40,7 @@ public class Application {
 
             // Initialize system components with validation
             SystemInitialiser initialiser = new SystemInitialiser();
-            InitialisationResult initResult = initialiser.initialise();
+            InitialisationResult initResult = initialiser.initialise(killswitch.getKillSignal());
 
             if (!initResult.isSuccess()) {
                 logger.error("System initialization failed: {}", initResult.getErrorMessage());

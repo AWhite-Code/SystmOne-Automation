@@ -1,6 +1,7 @@
 package systmone.automation.ui;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;
@@ -51,7 +52,7 @@ public class SystmOneAutomator {
      * @param similarity The similarity threshold for pattern matching
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
-    public SystmOneAutomator(double patternSimilarity) throws FindFailed {
+    public SystmOneAutomator(double patternSimilarity, AtomicBoolean killSwitch) throws FindFailed {
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
         
@@ -66,18 +67,19 @@ public class SystmOneAutomator {
 
         // Initialize UI state handler with required components
         this.uiStateHandler = new UiStateHandler(
-            searchRegions.getSelectionBorderRegion(),  // uiRegion
-            systmOneWindow,                            // mainWindow
-            selectionBorderPattern,                    // selectionBorderPattern
-            popupHandler                               // popupHandler
+            searchRegions.getSelectionBorderRegion(),
+            systmOneWindow,
+            selectionBorderPattern,
+            popupHandler
         );
             
-        // Initialize printer configuration handler
+        // Initialize printer configuration handler with killswitch
         this.printerConfigHandler = new PrinterConfigurationHandler(
             systmOne,
             systmOneWindow,
             searchRegions,
-            selectionBorderPattern
+            selectionBorderPattern,
+            killSwitch  // Add killSwitch here
         );
         
         if (systmOneWindow == null) {
