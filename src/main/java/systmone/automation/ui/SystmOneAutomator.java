@@ -79,7 +79,7 @@ public class SystmOneAutomator {
             systmOneWindow,
             searchRegions,
             selectionBorderPattern,
-            killSwitch  // Add killSwitch here
+            killSwitch
         );
         
         if (systmOneWindow == null) {
