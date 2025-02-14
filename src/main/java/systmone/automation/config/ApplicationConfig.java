@@ -34,17 +34,23 @@ public class ApplicationConfig {
     public static final int SAVE_DIALOG_DELAY_MS = 3000;
     public static final double DIALOG_TIMEOUT = 10.0; // in seconds
     public static final double MENU_TIMEOUT = 5.0;    // in seconds
+    public static final int RETRY_DELAY_MS = 100;
+    public static final int BUTTON_CLICK_DELAY_MS = 100;
 
     // Operation retry limits
     public static final int MAX_PRINT_MENU_ATTEMPTS = 3;     // Maximum attempts for print menu operation
     public static final int MAX_SAVE_ATTEMPTS = 3;           // Maximum attempts for save operation
     public static final int MAX_NAVIGATION_ATTEMPTS = 3;     // Maximum attempts for navigation
     public static final int MAX_VERIFICATION_ATTEMPTS = 3;    // Maximum attempts to verify document loaded
+    public static final int DEFAULT_RETRY_ATTEMPTS = 3;      // Default retry attempt for all programs
+    public static final int PRINTER_CONFIG_MAX_ATTEMPTS = 3;     // Maximum attempts for printer configuration operations
+    public static final long PRINTER_CONFIG_RETRY_DELAY_MS = 1000;  // Delay between printer config retry attempts
     
     // Popup handling delays
     public static final int POPUP_CLEANUP_DELAY_MS = 200;    // Delay after dismissing popup
     public static final int MENU_CLEANUP_DELAY_MS = 300;     // Delay after closing stuck menu
     public static final int POST_CLEANUP_DELAY_MS = 500;     // Delay after full cleanup sequence
+    public static final int DEFAULT_RETRY_DELAY_MS = 100;    // Delay for all non specific processes
 
     // Navigation timing configurations
     public static final int NAVIGATION_VERIFY_TIMEOUT = 5;    // Timeout for navigation verification (seconds)
