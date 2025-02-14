@@ -29,7 +29,6 @@ public class PrinterConfigurationPopupHandler {
     private PrinterConfigState currentState;
     private boolean wasPopupHandled;
     private long lastPopupTime;
-    private int popupCount;
 
     public PrinterConfigurationPopupHandler(
             WindowStateManager windowManager,
@@ -79,7 +78,6 @@ public class PrinterConfigurationPopupHandler {
             // Track popup handling
             wasPopupHandled = true;
             lastPopupTime = System.currentTimeMillis();
-            popupCount++;
             
             // Perform state-specific cleanup
             cleanupCurrentState();
@@ -191,7 +189,6 @@ public class PrinterConfigurationPopupHandler {
     public void resetState() {
         wasPopupHandled = false;
         lastPopupTime = 0;
-        popupCount = 0;
         currentState = PrinterConfigState.DOCUMENT_SELECTION;
         logger.debug("Popup handler state reset completed");
     }

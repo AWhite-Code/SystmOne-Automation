@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.state.WindowStateManager;
-import systmone.automation.util.RetryOperationHandler;
 
 import java.util.concurrent.TimeUnit;
 
@@ -214,7 +213,6 @@ public class PrinterConfigurationHandler {
 
     private Match selectInitialDocument() throws FindFailed {
         logger.info("Looking for document to configure printer...");
-        long methodStartTime = System.currentTimeMillis();
         
         popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
         
@@ -267,7 +265,6 @@ public class PrinterConfigurationHandler {
 
     private boolean selectNoOCROption(Match documentMatch) throws FindFailed, InterruptedException {
         logger.info("Initiating context menu interaction...");
-        long methodStartTime = System.currentTimeMillis();
         
         // Update state
         popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.CONTEXT_MENU);

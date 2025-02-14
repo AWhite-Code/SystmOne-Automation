@@ -1,7 +1,6 @@
 package systmone.automation.state;
 
 import org.sikuli.script.App;
-import org.sikuli.script.FindFailed;
 import org.sikuli.script.Key;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
