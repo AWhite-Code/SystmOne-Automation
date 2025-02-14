@@ -68,6 +68,13 @@
             <version>5.9.2</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- Kill switch -->
+        <dependency>
+            <groupId>com.github.kwhat</groupId>
+            <artifactId>jnativehook</artifactId>
+            <version>2.2.2</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -114,9 +121,10 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
-                    <configuration>
-                        <mainClass>systmone.automation.core.Application</mainClass>
-                    </configuration>
+                <configuration>
+                    <mainClass>systmone.automation.core.Application</mainClass>
+                    <cleanupDaemonThreads>false</cleanupDaemonThreads>
+                </configuration>
             </plugin>
         </plugins>
     </build>
