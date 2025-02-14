@@ -168,49 +168,65 @@ public class PrinterConfigurationHandler {
      * Opens the printer settings window using text-based button detection.
      */
     private App openPrinterSettings(App scannedDocWindow) throws FindFailed, InterruptedException {
+        logger.info("Opening printer settings using text recognition...");
+        
         Region scannedDocRegion = scannedDocWindow.window();
+        
+        // Define search region in top third of window where button typically appears
         Region buttonRegion = new Region(
             scannedDocRegion.x,
             scannedDocRegion.y,
-            scannedDocRegion.w / 3,
-            scannedDocRegion.h / 4
+            scannedDocRegion.w / 3,  // First third of window width
+            scannedDocRegion.h / 4   // First quarter of window height
         );
-        
+    
         // Check for popups before searching for button
         if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
             return null;
         }
-        
-        Pattern settingsButtonPattern = new Pattern("printer_settings_button.png").similar(0.8);
-        Match buttonMatch = buttonRegion.wait(settingsButtonPattern, ApplicationConfig.DIALOG_TIMEOUT);
-        if (buttonMatch == null) return null;
-        
-        // Check for popups before clicking
-        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+    
+        try {
+            // Use OCR to find "Printer Settings" text
+            Match buttonMatch = buttonRegion.waitText("Printer Settings", ApplicationConfig.DIALOG_TIMEOUT);
+            
+            if (buttonMatch == null) {
+                logger.error("Could not find 'Printer Settings' button using text recognition");
+                return null;
+            }
+    
+            // Check for popups before clicking
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return null;
+            }
+    
+            // Click the found text location
+            buttonMatch.click();
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.BUTTON_CLICK_DELAY_MS);
+    
+            // Check for popups after clicking
+            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+                return null;
+            }
+    
+            // Initialize and verify printer settings window
+            App printerSettingsWindow = new App("Actioned Scanned Image Printer Settings");
+            if (printerSettingsWindow.window() == null) {
+                logger.error("Printer settings window did not open after clicking text button");
+                return null;
+            }
+    
+            // Focus the new window
+            printerSettingsWindow.focus();
+            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
+    
+            return printerSettingsWindow;
+    
+        } catch (FindFailed e) {
+            logger.error("Failed to find or click 'Printer Settings' text: {}", e.getMessage());
             return null;
         }
-        
-        buttonMatch.click();
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.BUTTON_CLICK_DELAY_MS);
-        
-        // Check for popups after clicking
-        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-            return null;
-        }
-        
-        // Focus and verify new window
-        App printerSettingsWindow = new App("Actioned Scanned Image Printer Settings");
-        if (printerSettingsWindow.window() == null) {
-            logger.error("Printer settings window did not open");
-            return null;
-        }
-        
-        printerSettingsWindow.focus();
-        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
-        
-        return printerSettingsWindow;
     }
-
+    
     private Match selectInitialDocument() throws FindFailed {
         logger.info("Looking for document to configure printer...");
         
