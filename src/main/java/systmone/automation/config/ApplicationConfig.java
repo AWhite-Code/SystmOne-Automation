@@ -8,7 +8,8 @@ import java.time.format.DateTimeFormatter;
 public class ApplicationConfig {
     // Application constants
     public static final String APP_TITLE = "SystmOne GP:";
-    public static final String IMAGE_DIR_PATH = "src/main/resources/images";
+    // public static final String IMAGE_DIR_PATH = "src/main/resources/images";
+    public static final String IMAGE_DIR_PATH = "resources/images";
     public static final boolean AUTO_CONFIGURE_PDF_PRINTER = true; 
 
         // Path configuration

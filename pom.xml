@@ -14,6 +14,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <sikulixapi.version>2.0.5</sikulixapi.version>
         <slf4j.version>2.0.9</slf4j.version>
+        <main.class>systmone.automation.core.Application</main.class>
+        <jpackage.image.name>SystmOneProcessor</jpackage.image.name>
     </properties>
 
     <repositories>
@@ -48,7 +50,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.9</version>
+            <version>${slf4j.version}</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
@@ -85,8 +87,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
                 </configuration>
             </plugin>
 
@@ -101,7 +103,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>systmone.automation.core.Application</mainClass>
+                            <mainClass>${main.class}</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -115,14 +117,14 @@
                     </execution>
                 </executions>
             </plugin>
-
+            
             <!-- Exec Plugin -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>systmone.automation.core.Application</mainClass>
+                    <mainClass>${main.class}</mainClass>
                     <cleanupDaemonThreads>false</cleanupDaemonThreads>
                 </configuration>
             </plugin>
