@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.killswitch.GlobalKillswitch;

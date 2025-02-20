@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.killswitch.GlobalKillswitch;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**

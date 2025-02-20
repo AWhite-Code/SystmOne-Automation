@@ -48,18 +48,18 @@ public class UiStateHandler {
      */
     public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, 
     PopupHandler popupHandler) {
-    this.uiRegion = uiRegion;
-    this.mainWindow = mainWindow;
-    this.selectionBorderPattern = selectionBorderPattern;
-    this.popupHandler = popupHandler;
-    this.loggingState = new UILoggingState(logger);
+        this.uiRegion = uiRegion;
+        this.mainWindow = mainWindow;
+        this.selectionBorderPattern = selectionBorderPattern;
+        this.popupHandler = popupHandler;
+        this.loggingState = new UILoggingState(logger);
 
-    try {
-    this.robot = new Robot();
-    } catch (Exception e) {
-    logger.error("Failed to initialize Robot for color detection", e);
+        try {
+        this.robot = new Robot();
+        } catch (Exception e) {
+        logger.error("Failed to initialize Robot for color detection", e);
+        }
     }
-}
 
     
     /**

@@ -1,7 +1,6 @@
 package systmone.automation.ui;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.script.*;
 import org.slf4j.Logger;
@@ -35,15 +34,12 @@ import systmone.automation.killswitch.GlobalKillswitch;
 public class SystmOneAutomator {
     private static final Logger logger = LoggerFactory.getLogger(SystmOneAutomator.class);
 
-    // Core application components
     private final App systmOne;
     private final Region systmOneWindow;
     private final PopupHandler popupHandler;
     private final SearchRegions searchRegions;
     private final PrinterConfigurationHandler printerConfigHandler;
     private final UiStateHandler uiStateHandler;
-
-    // UI pattern matchers
     private final Pattern selectionBorderPattern;
     private final Pattern saveDialogPattern;
     private final Pattern popupPattern;
@@ -55,27 +51,20 @@ public class SystmOneAutomator {
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
     public SystmOneAutomator(double patternSimilarity, GlobalKillswitch killSwitch) throws FindFailed {
-        logger.debug("SystmOneAutomator constructor called with killSwitch: {}", killSwitch);
-        
         if (killSwitch == null) {
-            logger.error("Null killSwitch provided to SystmOneAutomator constructor");
             throw new IllegalArgumentException("KillSwitch must be provided");
         }
-        
+
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
-        
-        // Initialize search regions before patterns
         this.searchRegions = new SearchRegions(systmOneWindow);
         
-        // Initialize all patterns with location-specific names
+        // Initialize patterns
         this.selectionBorderPattern = initializePattern("selection_border", patternSimilarity);
         this.saveDialogPattern = initializePattern("save_dialog_title", patternSimilarity);
         this.popupPattern = initializePattern("question_popup_title", patternSimilarity);
         
         this.popupHandler = new PopupHandler(systmOneWindow);
-    
-        // Initialize UI state handler with required components
         this.uiStateHandler = new UiStateHandler(
             searchRegions.getSelectionBorderRegion(),
             systmOneWindow,
@@ -83,25 +72,20 @@ public class SystmOneAutomator {
             popupHandler
         );
             
-        logger.debug("About to create PrinterConfigurationHandler with killSwitch: {}", killSwitch);
-        
-        // Initialize printer configuration handler with killswitch and popup handling components
         this.printerConfigHandler = new PrinterConfigurationHandler(
             systmOne,
             systmOneWindow,
             searchRegions,
             selectionBorderPattern,
             popupPattern,
-            killSwitch  // This seems correct
+            killSwitch
         );
         
-        logger.debug("PrinterConfigurationHandler created successfully");
-    
         if (systmOneWindow == null) {
             throw new FindFailed("Failed to initialize SystmOne window");
         }
     }
-    
+
     /**
      * Initializes the SystmOne application instance and verifies its window.
      * 
