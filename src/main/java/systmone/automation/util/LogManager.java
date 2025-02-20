@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -135,34 +136,88 @@ public class LogManager {
         }
     }
 
+
     public static void updateLogName(String newName) {
         if (!isInitialized || context == null) {
             return;
         }
-        
+
         try {
+            // Stop logging temporarily
             context.stop();
             Thread.sleep(100);
-            
-            String oldFileName = currentFileName;
-            currentFileName = newName;
-            
-            Path oldFile = Paths.get(LOG_BASE_PATH, currentMonthYear, oldFileName + ".log");
-            Path newFile = Paths.get(LOG_BASE_PATH, currentMonthYear, currentFileName + ".log");
-            
+
+            Path monthlyPath = Paths.get(LOG_BASE_PATH, currentMonthYear);
+            Path oldFile = Paths.get(monthlyPath.toString(), currentFileName + ".log");
+            Path newFile = Paths.get(monthlyPath.toString(), newName + ".log");
+
+            // Read content from old log
+            String oldContent = "";
             if (Files.exists(oldFile)) {
-                Files.move(oldFile, newFile, StandardCopyOption.REPLACE_EXISTING);
+                oldContent = Files.readString(oldFile);
+                Files.delete(oldFile);
             }
-            
+
+            // Update the properties
+            currentFileName = newName;
             configureContextProperties();
-            
+
+            // Write combined content to new file
+            Files.writeString(newFile, oldContent, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+
+            // Reconfigure logging to use new file
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(context);
             configurator.doConfigure(LogManager.class.getResource("/logback.xml"));
             
             context.start();
+
         } catch (Exception e) {
             System.err.println("Failed to update log name: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public static void finalizeLog(String status, int processedCount) {
+        try {
+            // Ensure we have all pending logs written
+            context.stop();
+            Thread.sleep(200);  // Give more time for logs to flush
+
+            String finalFileName = String.format("%s - %d Documents%s", 
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("d.M.yy - HH.mm.ss")),
+                processedCount,
+                status != null ? " - " + status : "");
+
+            Path monthlyPath = Paths.get(LOG_BASE_PATH, currentMonthYear);
+            Path inProgressFile = Paths.get(monthlyPath.toString(), currentFileName + ".log");
+            Path finalFile = Paths.get(monthlyPath.toString(), finalFileName + ".log");
+
+            // Combine all existing logs
+            StringBuilder combinedContent = new StringBuilder();
+            if (Files.exists(inProgressFile)) {
+                combinedContent.append(Files.readString(inProgressFile));
+                Files.delete(inProgressFile);
+            }
+
+            // Write combined content to final file
+            Files.writeString(finalFile, combinedContent.toString(), 
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+            // Update tracking
+            currentFileName = finalFileName;
+            configureContextProperties();
+
+            // Restart logging with new configuration
+            JoranConfigurator configurator = new JoranConfigurator();
+            configurator.setContext(context);
+            configurator.doConfigure(LogManager.class.getResource("/logback.xml"));
+            
+            context.start();
+
+        } catch (Exception e) {
+            System.err.println("Failed to finalize log: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

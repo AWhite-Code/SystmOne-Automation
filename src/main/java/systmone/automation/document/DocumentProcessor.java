@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.killswitch.GlobalKillswitch;
 import systmone.automation.state.ProcessingStats;
 import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
@@ -57,21 +58,21 @@ public class DocumentProcessor {
      * @param killSwitch Control flag for graceful shutdown
      */
     public DocumentProcessor(
-            SystmOneAutomator automator,
-            UiStateHandler uiHandler,
-            String outputFolder,
-            AtomicBoolean killSwitch) {
-        this.automator = automator;
-        this.uiHandler = uiHandler;
-        this.outputFolder = outputFolder;
-        this.killSwitch = killSwitch;
-        this.stats = new ProcessingStats();
-        
-        // Initialize scrollbar tracking
-        if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
-            logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+        SystmOneAutomator automator,
+        UiStateHandler uiHandler,
+        String outputFolder,
+        GlobalKillswitch killSwitch) {
+            
+            this.automator = automator;
+            this.uiHandler = uiHandler;
+            this.outputFolder = outputFolder;
+            this.killSwitch = killSwitch.getKillSignal();  // Store the signal for internal use
+            this.stats = new ProcessingStats();
+            
+            if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
+                logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
+            }
         }
-    }
 
     /**
      * Orchestrates the complete document processing workflow.

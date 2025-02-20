@@ -27,17 +27,18 @@ public class Application {
     public static void main(String[] args) {
         LogManager.initializeLogging();
         ProcessingStats stats = null;
-        boolean initializationSuccessful = false;  // Add this flag
+        boolean initializationSuccessful = false;
+        boolean processingStarted = false;  // Add new flag for processing state
     
         try {
             // Initialize killswitch first
             try {
                 killswitch = GlobalKillswitch.initialize();
-                logger.info("Global killswitch initialized (F10 to terminate)");
+                logger.info("Global killswitch initialized (F5 to terminate)");
                 logger.debug("KillSwitch signal state: {}", killswitch.getKillSignal().get());
             } catch (NativeHookException e) {
                 logger.error("Failed to initialize global killswitch: {}", e.getMessage());
-                return;  // Return instead of System.exit(1)
+                return;
             }
     
             Thread.sleep(100);
@@ -49,11 +50,10 @@ public class Application {
     
             if (!initResult.isSuccess()) {
                 logger.error("System initialization failed: {}", initResult.getErrorMessage());
-                return;  // Return instead of System.exit(1)
+                return;
             }
     
-            // Initialization successful at this point
-            initializationSuccessful = true;  // Set flag
+            initializationSuccessful = true;
     
             // Initialize document processor with required components
             SystemComponents components = initResult.getComponents();
@@ -61,16 +61,16 @@ public class Application {
                 components.getAutomator(),
                 components.getUiHandler(),
                 components.getOutputFolder(),
-                killswitch.getKillSignal()
+                killswitch
             );
     
             logger.info("Running in production mode - full document processing");
+            processingStarted = true;  // Set flag before processing starts
             stats = processor.processDocuments();
     
-            // Check if killswitch was triggered during processing
             if (killswitch.isKillSignalReceived()) {
                 logger.info("Kill signal received, initiating shutdown...");
-                return;  // Return instead of System.exit(0)
+                return;
             }
     
         } catch (Exception e) {
@@ -79,20 +79,18 @@ public class Application {
         finally {
             try {
                 if (killswitch != null) {
-                    // Only cleanup killswitch if initialization was successful 
-                    // or we've finished processing
                     if (initializationSuccessful) {
                         killswitch.cleanup();
                     }
                 }
-                // Only generate summary if we got to processing
-                if (initializationSuccessful) {
+                // Only generate summary if we actually started processing
+                if (processingStarted && stats != null) {
                     logger.info("Generating processing summary");
                     SummaryGenerator.generateProcessingSummary(stats);
                 }
                 logger.info("Application shutdown complete");
             } finally {
-                System.exit(initializationSuccessful ? 0 : 1);  // Exit with appropriate code
+                System.exit(initializationSuccessful ? 0 : 1);
             }
         }
     }
