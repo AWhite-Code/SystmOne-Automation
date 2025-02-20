@@ -19,19 +19,10 @@ public class WindowStateManager {
     private App currentFocusedWindow;
     
     public WindowStateManager(App mainApp) {
-        try {
-            if (mainApp == null) {
-                throw new IllegalArgumentException("Main app cannot be null");
-            }
-            if (mainApp.window() == null) {
-                throw new IllegalArgumentException("Main app window not accessible");
-            }
-            this.mainApp = mainApp;
-            logger.debug("WindowStateManager initialized with app: {}", mainApp);
-        } catch (Exception e) {
-            logger.error("Failed to initialize WindowStateManager: ", e);
-            throw e;
+        if (mainApp == null || mainApp.window() == null) {
+            throw new IllegalArgumentException("Main app must be provided and accessible");
         }
+        this.mainApp = mainApp;
     }
 
     /**
@@ -96,7 +87,6 @@ public class WindowStateManager {
      */
     private boolean verifyWindowFocused(App window) {
         try {
-            // Additional focus verification could be added here
             return window.window() != null && window.window().isValid();
         } catch (Exception e) {
             return false;
