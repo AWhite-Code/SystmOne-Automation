@@ -57,35 +57,48 @@ public class SystemInitialiser {
             }
        
             // Create automator with standard configuration and killswitch
-            logger.debug("About to create automator");
             SystmOneAutomator automator = createAutomator(killSwitch);
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
-    
-            // CRITICAL: Add detailed exception logging here
-            try {
-                logger.debug("About to create system components");
-                SystemComponents components = new SystemComponents(automator, initializeOutputDirectory());
-                logger.debug("System components created successfully");
-                
-                // Verify all required components are properly initialized
-                if (components.getUiHandler() == null || components.getPopupHandler() == null) {
-                    return InitialisationResult.failed("Failed to initialize all required components");
-                }
        
-                return InitialisationResult.succeeded(components);
-                
-            } catch (Exception e) {
-                // Log the full stack trace here
-                logger.error("Exception during component initialization: ", e);
-                throw e; // Let this propagate up
+            // Ensure proper application window state
+            try {
+                automator.focus();
+            } catch (InterruptedException e) {
+                return InitialisationResult.failed("Failed to focus SystmOne window: " + e.getMessage());
             }
        
+            // Configure printer if enabled
+            if (ApplicationConfig.AUTO_CONFIGURE_PDF_PRINTER) {
+                try {
+                    if (!automator.configurePDFPrinter()) {
+                        logger.warn("Failed to configure PDF printer - manual setup may be required");
+                    }
+                } catch (FindFailed e) {
+                    logger.warn("Failed to configure PDF printer: " + e.getMessage());
+                }
+            }
+    
+            // Establish document storage structure
+            String outputFolder = initializeOutputDirectory();
+            if (outputFolder == null) {
+                return InitialisationResult.failed("Failed to create output directory");
+            }
+       
+            // Initialize core system component container
+            SystemComponents components = new SystemComponents(automator, outputFolder);
+               
+            // Verify all required components are properly initialized
+            if (components.getUiHandler() == null || components.getPopupHandler() == null) {
+                return InitialisationResult.failed("Failed to initialize all required components");
+            }
+       
+            return InitialisationResult.succeeded(components);
+       
         } catch (Exception e) {
-            // Log the full stack trace for any other exceptions
             logger.error("Critical error during initialization: ", e);
-            throw e; // Let this propagate up instead of wrapping in InitialisationResult
+            return InitialisationResult.failed("Unexpected error during initialization: " + e.getMessage());
         }
     }
 
@@ -107,10 +120,7 @@ public class SystemInitialiser {
         
             File[] files = imageDir.listFiles();
             if (files != null) {
-                logger.info("Found these images in directory:");
-                for (File file : files) {
-                    logger.info(" - {}", file.getName());
-                }
+                logger.info("Found {} image files in directory", files.length);
             }
             
             ImagePath.add(imageDir.getAbsolutePath());
@@ -136,7 +146,6 @@ public class SystemInitialiser {
             Path outputPath = Paths.get(ApplicationConfig.OUTPUT_BASE_PATH, folderName);
             Path absolutePath = outputPath.toAbsolutePath().normalize();
             
-            // Create all necessary directories
             Files.createDirectories(absolutePath);
             
             logger.info("Created output directory: {}", absolutePath);
@@ -162,9 +171,11 @@ public class SystemInitialiser {
                 logger.error("Null killSwitch provided to createAutomator");
                 return null;
             }
-            logger.debug("Creating automator with killSwitch state: {}", killSwitch.getKillSignal().get());
+            
             SystmOneAutomator automator = new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY, killSwitch);
-            logger.debug("Automator created successfully with killSwitch: {}", (automator != null));
+            if (automator != null) {
+                logger.debug("SystmOne automator created successfully");
+            }
             return automator;
         } catch (FindFailed e) {
             logger.error("Failed to create automator: " + e.getMessage());
