@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.killswitch.GlobalKillswitch;
 import systmone.automation.state.InitialisationResult;
 import systmone.automation.ui.SystmOneAutomator;
 
@@ -48,7 +49,7 @@ public class SystemInitialiser {
      * @return InitialisationResult containing either initialized components
      *         or a detailed error message if initialization fails
      */
-    public InitialisationResult initialise(AtomicBoolean killSwitch) {  // Add parameter here
+    public InitialisationResult initialise(GlobalKillswitch killSwitch) {  // Add parameter here
         try {
             // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
@@ -169,9 +170,16 @@ public class SystemInitialiser {
      * 
      * @return Configured SystmOneAutomator instance, or null if creation fails
      */
-    private SystmOneAutomator createAutomator(AtomicBoolean killSwitch) {
+    private SystmOneAutomator createAutomator(GlobalKillswitch killSwitch) {
         try {
-            return new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY, killSwitch);
+            if (killSwitch == null) {
+                logger.error("Null killSwitch provided to createAutomator");
+                return null;
+            }
+            logger.debug("Creating automator with killSwitch state: {}", killSwitch.getKillSignal().get());
+            SystmOneAutomator automator = new SystmOneAutomator(ApplicationConfig.DEFAULT_SIMILARITY, killSwitch);
+            logger.debug("Automator created successfully with killSwitch: {}", (automator != null));
+            return automator;
         } catch (FindFailed e) {
             logger.error("Failed to create automator: " + e.getMessage());
             return null;

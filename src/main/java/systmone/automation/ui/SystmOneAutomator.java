@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.killswitch.GlobalKillswitch;
 
 /**
  * Provides core automation functionality for interacting with the SystmOne application.
@@ -53,7 +54,10 @@ public class SystmOneAutomator {
      * @param similarity The similarity threshold for pattern matching
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
-    public SystmOneAutomator(double patternSimilarity, AtomicBoolean killSwitch) throws FindFailed {
+    public SystmOneAutomator(double patternSimilarity, GlobalKillswitch killSwitch) throws FindFailed {
+        if (killSwitch == null) {
+            throw new IllegalArgumentException("KillSwitch must be provided");
+        }
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
         

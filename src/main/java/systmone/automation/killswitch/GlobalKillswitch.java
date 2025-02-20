@@ -106,6 +106,16 @@ public class GlobalKillswitch implements NativeKeyListener {
     }
 
     /**
+     * Convenience method to check if kill signal is active.
+     * Provides a cleaner API than accessing the AtomicBoolean directly.
+     * 
+     * @return true if kill signal has been received, false otherwise
+     */
+    public boolean isKilled() {
+        return killSignal.get();
+    }
+
+    /**
      * Cleans up resources and unregisters the native hook.
      * Should be called during application shutdown.
      */
@@ -113,6 +123,9 @@ public class GlobalKillswitch implements NativeKeyListener {
         try {
             logger.info("Cleaning up global killswitch");
             GlobalScreen.unregisterNativeHook();
+            GlobalScreen.removeNativeKeyListener(this);  // Add this line
+            instance = null;  // Add this line to reset the singleton
+            killSignal.set(false);  // Reset the signal
         } catch (NativeHookException e) {
             logger.warn("Failed to unregister native hook: {}", e.getMessage());
         }

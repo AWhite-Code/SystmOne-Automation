@@ -28,27 +28,23 @@ public class Application {
         LogManager.initializeLogging();
         ProcessingStats stats = null;
     
-        // Add shutdown hook first thing
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("Shutdown hook triggered, cleaning up resources...");
-            if (killswitch != null) {
-                killswitch.cleanup();
-            }
-        }));
-    
         try {
-            // Initialize killswitch first
+            // Initialize killswitch first with additional logging
             try {
                 killswitch = GlobalKillswitch.initialize();
                 logger.info("Global killswitch initialized (F10 to terminate)");
+                logger.debug("KillSwitch signal state: {}", killswitch.getKillSignal().get());
             } catch (NativeHookException e) {
                 logger.error("Failed to initialize global killswitch: {}", e.getMessage());
                 System.exit(1);
             }
     
-            // Initialize system components with validation
+            Thread.sleep(100);  // 100ms delay
+    
             SystemInitialiser initialiser = new SystemInitialiser();
-            InitialisationResult initResult = initialiser.initialise(killswitch.getKillSignal());
+
+            logger.debug("Passing killswitch signal to initialiser: {}", killswitch.getKillSignal().get());
+            InitialisationResult initResult = initialiser.initialise(killswitch);
     
             if (!initResult.isSuccess()) {
                 logger.error("System initialization failed: {}", initResult.getErrorMessage());
@@ -76,15 +72,18 @@ public class Application {
         } catch (Exception e) {
             logger.error("Critical application failure: {}", e.getMessage(), e);
             System.exit(1);
-        } finally {
-            if (killswitch != null) {
-                killswitch.cleanup();
+        } 
+        finally {
+            try {
+                if (killswitch != null) {
+                    killswitch.cleanup();
+                }
+                logger.info("Generating processing summary");
+                SummaryGenerator.generateProcessingSummary(stats);
+                logger.info("Application shutdown complete");
+            } finally {
+                System.exit(0);  // Force complete shutdown
             }
-            logger.info("Generating processing summary");
-            SummaryGenerator.generateProcessingSummary(stats);
-            logger.info("Application shutdown complete");
-            // Force exit after cleanup
-            System.exit(0);
         }
     }
 }
