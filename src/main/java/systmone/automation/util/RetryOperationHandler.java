@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -15,10 +16,12 @@ public class RetryOperationHandler {
 
     private final int maxAttempts;
     private final long delayBetweenAttempts;
+    private final AtomicBoolean killSwitch;  // Add killSwitch reference
     
-    public RetryOperationHandler(int maxAttempts, long delayBetweenAttempts) {
+    public RetryOperationHandler(int maxAttempts, long delayBetweenAttempts, AtomicBoolean killSwitch) {
         this.maxAttempts = maxAttempts;
         this.delayBetweenAttempts = delayBetweenAttempts;
+        this.killSwitch = killSwitch;
     }
 
     /**
@@ -38,6 +41,12 @@ public class RetryOperationHandler {
         boolean success = false;
         
         while (attempts < maxAttempts && !success) {
+            // Check killswitch before each attempt
+            if (killSwitch.get()) {
+                logger.info("Kill switch activated during {} - aborting retry loop", operationName);
+                return false;
+            }
+
             attempts++;
             logger.info("Attempting {} (attempt {} of {})", 
                     operationName, attempts, maxAttempts);
@@ -49,6 +58,10 @@ public class RetryOperationHandler {
                     if (cleanup != null) {
                         cleanup.run();
                     }
+                    // Check killswitch before sleeping
+                    if (killSwitch.get()) {
+                        return false;
+                    }
                     Thread.sleep(delayBetweenAttempts);
                 }
             } catch (Exception e) {
@@ -58,6 +71,10 @@ public class RetryOperationHandler {
                     cleanup.run();
                 }
                 try {
+                    // Check killswitch before sleeping
+                    if (killSwitch.get()) {
+                        return false;
+                    }
                     Thread.sleep(delayBetweenAttempts);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
@@ -88,6 +105,7 @@ public class RetryOperationHandler {
     public static class RetryOperationBuilder {
         private int maxAttempts = ApplicationConfig.DEFAULT_RETRY_ATTEMPTS;
         private long delayBetweenAttempts = ApplicationConfig.DEFAULT_RETRY_DELAY_MS;
+        private AtomicBoolean killSwitch;  // Add to builder
         
         public RetryOperationBuilder maxAttempts(int maxAttempts) {
             this.maxAttempts = maxAttempts;
@@ -98,9 +116,17 @@ public class RetryOperationHandler {
             this.delayBetweenAttempts = delayMs;
             return this;
         }
+
+        public RetryOperationBuilder killSwitch(AtomicBoolean killSwitch) {
+            this.killSwitch = killSwitch;
+            return this;
+        }
         
         public RetryOperationHandler build() {
-            return new RetryOperationHandler(maxAttempts, delayBetweenAttempts);
+            if (killSwitch == null) {
+                throw new IllegalStateException("KillSwitch must be provided");
+            }
+            return new RetryOperationHandler(maxAttempts, delayBetweenAttempts, killSwitch);
         }
     }
 }
