@@ -27,14 +27,14 @@ public class UiStateHandler {
     private static final Logger logger = LoggerFactory.getLogger(UiStateHandler.class);
     
     private final Region uiRegion;
-    private int scrollbarX;  // Stores the center X coordinate of the scrollbar
+    private int scrollbarX;
     private Robot robot;
     private PopupHandler popupHandler;
     
     // Scrollbar tracking state
-    private Rectangle baselineThumbPosition;    // Position at start of document load
-    private Region fixedScrollbarRegion;        // Region where scrollbar movement is tracked
-    private boolean isTrackingStarted;          // Flag to indicate if tracking is active
+    private Rectangle baselineThumbPosition;
+    private Region fixedScrollbarRegion;
+    private boolean isTrackingStarted;
     private final Region mainWindow;
     private final Pattern selectionBorderPattern;
     private final UILoggingState loggingState;
@@ -47,7 +47,7 @@ public class UiStateHandler {
      * @throws RuntimeException if Robot initialization fails
      */
     public UiStateHandler(Region uiRegion, Region mainWindow, Pattern selectionBorderPattern, 
-    PopupHandler popupHandler) {
+            PopupHandler popupHandler) {
         this.uiRegion = uiRegion;
         this.mainWindow = mainWindow;
         this.selectionBorderPattern = selectionBorderPattern;
@@ -55,12 +55,11 @@ public class UiStateHandler {
         this.loggingState = new UILoggingState(logger);
 
         try {
-        this.robot = new Robot();
+            this.robot = new Robot();
         } catch (Exception e) {
-        logger.error("Failed to initialize Robot for color detection", e);
+            logger.error("Failed to initialize Robot for color detection", e);
         }
     }
-
     
     /**
      * Waits for a UI element to appear and remain stable in its position.
@@ -125,17 +124,14 @@ public class UiStateHandler {
         }
 
         try {
-            // First, let any ongoing UI updates settle
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
-            // Take multiple readings to ensure we have a stable starting position
             Rectangle position1 = findScrollbarThumb(fixedScrollbarRegion);
             if (position1 == null) {
                 logger.error("Could not find initial thumb position");
                 return false;
             }
 
-            // Wait between readings to ensure stability
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
             Rectangle position2 = findScrollbarThumb(fixedScrollbarRegion);
@@ -144,7 +140,6 @@ public class UiStateHandler {
                 return false;
             }
 
-            // Take a third reading for extra confidence
             Thread.sleep(ApplicationConfig.NAVIGATION_DELAY_MS);
             
             Rectangle position3 = findScrollbarThumb(fixedScrollbarRegion);
@@ -153,14 +148,12 @@ public class UiStateHandler {
                 return false;
             }
 
-            // Verify all positions are stable
             if (position1.y != position2.y || position2.y != position3.y) {
                 logger.warn("Unstable thumb positions detected: y1={}, y2={}, y3={}", 
                     position1.y, position2.y, position3.y);
                 return false;
             }
 
-            // If we got here, position is stable
             baselineThumbPosition = position1;
             isTrackingStarted = true;
             
@@ -486,33 +479,18 @@ public class UiStateHandler {
      * Determines if a color matches any of the standard scrollbar colors.
      */
     private boolean isScrollbarColor(Color color) {
-        boolean isMatch = isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
-                        isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
-                        isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED);
-        
-        if (isMatch) {
-            logger.trace("Color match found: RGB({},{},{})", 
-                color.getRed(), color.getGreen(), color.getBlue());
-        }
-        
-        return isMatch;
+        return isMatchingColor(color, ApplicationConfig.SCROLLBAR_DEFAULT) ||
+               isMatchingColor(color, ApplicationConfig.SCROLLBAR_HOVER) ||
+               isMatchingColor(color, ApplicationConfig.SCROLLBAR_SELECTED);
     }
 
     /**
      * Compares two colors accounting for configured tolerance.
      */
     private boolean isMatchingColor(Color c1, Color target) {
-        boolean matches = Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
-                        Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
-                        Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
-        
-        if (matches) {
-            logger.trace("Color match: Source RGB({},{},{}) matches target RGB({},{},{})", 
-                c1.getRed(), c1.getGreen(), c1.getBlue(),
-                target.getRed(), target.getGreen(), target.getBlue());
-        }
-        
-        return matches;
+        return Math.abs(c1.getRed() - target.getRed()) <= ApplicationConfig.COLOR_TOLERANCE &&
+               Math.abs(c1.getGreen() - target.getGreen()) <= ApplicationConfig.COLOR_TOLERANCE &&
+               Math.abs(c1.getBlue() - target.getBlue()) <= ApplicationConfig.COLOR_TOLERANCE;
     }
 
     /**
