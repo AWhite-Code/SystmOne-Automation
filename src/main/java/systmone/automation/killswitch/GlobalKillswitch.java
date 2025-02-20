@@ -4,6 +4,9 @@ import com.github.kwhat.jnativehook.GlobalScreen;
 import com.github.kwhat.jnativehook.NativeHookException;
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
 import com.github.kwhat.jnativehook.keyboard.NativeKeyListener;
+
+import systmone.automation.util.LogFileNameCreator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,6 +27,9 @@ public class GlobalKillswitch implements NativeKeyListener {
     private static final Logger logger = LoggerFactory.getLogger(GlobalKillswitch.class);
     private final AtomicBoolean killSignal;
     private static GlobalKillswitch instance;
+    
+    private static final String KILLED_MARKER = "Killed by User";
+    private static final String CRASHED_MARKER = "Crashed";
 
     /**
      * Private constructor to enforce singleton pattern.
@@ -46,19 +52,25 @@ public class GlobalKillswitch implements NativeKeyListener {
      */
     public static GlobalKillswitch initialize() throws NativeHookException {
         if (instance == null) {
-            logger.info("Initializing global killswitch");
-            
             // Reduce JNativeHook logging noise
             java.util.logging.Logger nativeHookLogger = 
                 java.util.logging.Logger.getLogger(GlobalScreen.class.getPackage().getName());
             nativeHookLogger.setLevel(java.util.logging.Level.WARNING);
             nativeHookLogger.setUseParentHandlers(false);
 
-            // Register native hook
             GlobalScreen.registerNativeHook();
             
             instance = new GlobalKillswitch();
             GlobalScreen.addNativeKeyListener(instance);
+            
+            // Register shutdown hook to catch crashes
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (instance != null && !instance.isKillSignalReceived()) {
+                    // If we're shutting down but kill signal wasn't triggered, it's a crash
+                    logger.error("Application crashed - finalizing logs");
+                    LogFileNameCreator.finalizeLog(CRASHED_MARKER);
+                }
+            }));
             
             logger.info("Global killswitch initialized successfully (F10 to terminate)");
         }
@@ -76,6 +88,7 @@ public class GlobalKillswitch implements NativeKeyListener {
         if (event.getKeyCode() == NativeKeyEvent.VC_F10) {
             logger.info("Kill signal received (F10 pressed)");
             killSignal.set(true);
+            LogFileNameCreator.finalizeLog(KILLED_MARKER);
         }
     }
 
@@ -123,9 +136,9 @@ public class GlobalKillswitch implements NativeKeyListener {
         try {
             logger.info("Cleaning up global killswitch");
             GlobalScreen.unregisterNativeHook();
-            GlobalScreen.removeNativeKeyListener(this);  // Add this line
-            instance = null;  // Add this line to reset the singleton
-            killSignal.set(false);  // Reset the signal
+            GlobalScreen.removeNativeKeyListener(this);
+            instance = null;
+            killSignal.set(false);
         } catch (NativeHookException e) {
             logger.warn("Failed to unregister native hook: {}", e.getMessage());
         }

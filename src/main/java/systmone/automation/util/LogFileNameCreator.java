@@ -2,6 +2,7 @@ package systmone.automation.util;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -17,9 +18,9 @@ public class LogFileNameCreator {
         createNewFileName();
     }
 
+
     public static void setDocumentCount(int count) {
         synchronized (lock) {
-            System.out.println("Setting document count to: " + count);
             documentCount = count;
             createNewFileName();
         }
@@ -28,10 +29,26 @@ public class LogFileNameCreator {
     public static String getCurrentFileName() {
         synchronized (lock) {
             if (currentFileName == null) {
-                System.out.println("Warning: Current filename was null, creating new filename");
                 createNewFileName();
             }
             return currentFileName;
+        }
+    }
+
+    public static void finalizeLog(String status) {
+        synchronized (lock) {
+            String date = startTime.format(DateTimeFormatter.ofPattern("d.M.yy"));
+            String time = startTime.format(DateTimeFormatter.ofPattern("HH.mm.ss"));
+            
+            String newFileName = String.format("%s - %s - %s%s", 
+                date, 
+                time,
+                documentCount > 0 ? documentCount + " Documents" : "0 Documents",
+                status != null ? " - " + status : ""
+            );
+            
+            currentFileName = newFileName;
+            LogManager.updateLogName(newFileName);
         }
     }
     
@@ -46,9 +63,7 @@ public class LogFileNameCreator {
                 documentCount > 0 ? documentCount + " Documents" : IN_PROGRESS_MARKER
             );
             
-            System.out.println("Created new filename: " + newFileName);
             currentFileName = newFileName;
-            
             verifyWritePermissions();
         }
     }
@@ -56,9 +71,8 @@ public class LogFileNameCreator {
     private static void verifyWritePermissions() {
         try {
             Path testPath = Paths.get("logs", "test.txt");
-            java.nio.file.Files.writeString(testPath, "Test file creation at " + LocalDateTime.now());
-            System.out.println("Successfully created test file at: " + testPath.toAbsolutePath());
-            java.nio.file.Files.delete(testPath);
+            Files.writeString(testPath, "Test file creation at " + LocalDateTime.now());
+            Files.delete(testPath);
         } catch (Exception e) {
             System.err.println("Warning: Could not create test file: " + e.getMessage());
         }

@@ -134,4 +134,35 @@ public class LogManager {
             System.err.println("Failed to cleanup undefined logs: " + e.getMessage());
         }
     }
+
+    public static void updateLogName(String newName) {
+        if (!isInitialized || context == null) {
+            return;
+        }
+        
+        try {
+            context.stop();
+            Thread.sleep(100);
+            
+            String oldFileName = currentFileName;
+            currentFileName = newName;
+            
+            Path oldFile = Paths.get(LOG_BASE_PATH, currentMonthYear, oldFileName + ".log");
+            Path newFile = Paths.get(LOG_BASE_PATH, currentMonthYear, currentFileName + ".log");
+            
+            if (Files.exists(oldFile)) {
+                Files.move(oldFile, newFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            
+            configureContextProperties();
+            
+            JoranConfigurator configurator = new JoranConfigurator();
+            configurator.setContext(context);
+            configurator.doConfigure(LogManager.class.getResource("/logback.xml"));
+            
+            context.start();
+        } catch (Exception e) {
+            System.err.println("Failed to update log name: " + e.getMessage());
+        }
+    }
 }
