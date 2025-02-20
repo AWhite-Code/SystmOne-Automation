@@ -1,17 +1,14 @@
 package systmone.automation.ui;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.sikuli.script.*;
-import org.sikuli.basics.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
 import systmone.automation.killswitch.GlobalKillswitch;
 import systmone.automation.state.WindowStateManager;
 
-import java.util.concurrent.TimeUnit;
 
 public class PrinterConfigurationHandler {
     private static final Logger logger = LoggerFactory.getLogger(PrinterConfigurationHandler.class);
@@ -20,76 +17,49 @@ public class PrinterConfigurationHandler {
     private final Region systmOneWindow;
     private final SearchRegions searchRegions;
     private final Pattern selectionBorderPattern;
-    private final GlobalKillswitch killSwitch; 
+    private final GlobalKillswitch killSwitch;
     private final Pattern popupPattern;
     private final WindowStateManager windowManager;
     private final PrinterConfigurationPopupHandler popupHandler;
     private Match currentDocumentMatch;
 
     public PrinterConfigurationHandler(
-        App systmOne,
-        Region systmOneWindow,
-        SearchRegions searchRegions,
-        Pattern selectionBorderPattern,
-        Pattern popupPattern,
-        GlobalKillswitch killSwitch) {  
-    
-    logger.debug("PrinterConfigurationHandler constructor starting with killSwitch: {}", killSwitch);
-    
-    try {
-        // Log all parameters
-        logger.debug("Constructor parameters:");
-        logger.debug(" - systmOne: {}", systmOne);
-        logger.debug(" - systmOneWindow: {}", systmOneWindow);
-        logger.debug(" - searchRegions: {}", searchRegions);
-        logger.debug(" - selectionBorderPattern: {}", selectionBorderPattern);
-        logger.debug(" - popupPattern: {}", popupPattern);
-        logger.debug(" - killSwitch: {}", killSwitch);
+            App systmOne,
+            Region systmOneWindow,
+            SearchRegions searchRegions,
+            Pattern selectionBorderPattern,
+            Pattern popupPattern,
+            GlobalKillswitch killSwitch) {
         
         if (killSwitch == null) {
-            logger.error("KillSwitch is null in PrinterConfigurationHandler constructor");
             throw new IllegalArgumentException("KillSwitch must be provided");
         }
 
-        this.systmOne = systmOne;
-        this.systmOneWindow = systmOneWindow;
-        this.searchRegions = searchRegions;
-        this.selectionBorderPattern = selectionBorderPattern;
-        this.popupPattern = popupPattern;
-        this.killSwitch = killSwitch;
-        
-        logger.debug("About to initialize WindowStateManager");
-        
         try {
+            this.systmOne = systmOne;
+            this.systmOneWindow = systmOneWindow;
+            this.searchRegions = searchRegions;
+            this.selectionBorderPattern = selectionBorderPattern;
+            this.popupPattern = popupPattern;
+            this.killSwitch = killSwitch;
+            
             this.windowManager = new WindowStateManager(systmOne);
-            logger.debug("WindowStateManager initialized successfully");
-        } catch (Exception e) {
-            logger.error("Failed to initialize WindowStateManager: ", e);
-            throw e;
-        }
-
-        logger.debug("About to initialize PrinterConfigurationPopupHandler");
-        
-        try {
+            
             this.popupHandler = new PrinterConfigurationPopupHandler(
                 windowManager,
                 systmOneWindow,
                 popupPattern,
                 killSwitch
             );
-            logger.debug("PrinterConfigurationPopupHandler initialized successfully");
+            
+            logger.debug("Printer configuration handler initialized");
+            
         } catch (Exception e) {
-            logger.error("Failed to initialize PrinterConfigurationPopupHandler: ", e);
+            logger.error("Failed to initialize printer configuration handler: ", e);
             throw e;
         }
-        
-        logger.debug("PrinterConfigurationHandler constructor completed successfully");
-        
-    } catch (Exception e) {
-        logger.error("Fatal error in PrinterConfigurationHandler constructor: ", e);
-        throw e;
     }
-}
+
 
     public boolean configurePDFPrinter() throws FindFailed {
         try {
@@ -97,55 +67,44 @@ public class PrinterConfigurationHandler {
             int maxAttempts = ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS;
             int currentAttempt = 0;
     
-            if (killSwitch.isKilled()) {
+            if (killSwitch.isKillSignalReceived()) {
                 logger.info("Kill switch activated - aborting printer configuration");
                 return false;
             }
             
             while (currentAttempt < maxAttempts) {
                 currentAttempt++;
-                logger.info("Configuration attempt {} of {}", currentAttempt, maxAttempts);
                 
                 try {
-                    // Set initial state
                     popupHandler.updateState(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION);
-                    popupHandler.resetState(); // Reset popup tracking for fresh attempt
+                    popupHandler.resetState();
                     
-                    // Clear any existing popups before starting
                     if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.DOCUMENT_SELECTION)) {
                         logger.warn("Failed to handle initial popup, retrying...");
                         continue;
                     }
                     
-                    // Use retry handler for the configuration process
                     boolean success = popupHandler.getRetryHandler().executeWithRetry(
                         () -> {
                             try {
-                                // Check killswitch before each major step
-                                if (killSwitch.isKilled()) {
+                                if (killSwitch.isKillSignalReceived()) {
                                     logger.info("Kill switch activated during configuration");
                                     return false;
                                 }
     
-                                // Step 1: Select document
                                 Match documentMatch = selectInitialDocument();
-                                if (documentMatch == null || killSwitch.isKilled()) return false;
+                                if (documentMatch == null || killSwitch.isKillSignalReceived()) return false;
                                 
-                                // Step 2: Open and handle context menu
-                                if (!selectNoOCROption(documentMatch) || killSwitch.isKilled()) return false;
+                                if (!selectNoOCROption(documentMatch) || killSwitch.isKillSignalReceived()) return false;
                                 
-                                // Step 3: Open and handle document update window
                                 App scannedDocWindow = openDocumentUpdateWindow();
-                                if (scannedDocWindow == null || killSwitch.isKilled()) return false;
+                                if (scannedDocWindow == null || killSwitch.isKillSignalReceived()) return false;
                                 
-                                // Step 4: Open and configure printer settings
                                 App printerSettingsWindow = openPrinterSettings(scannedDocWindow);
-                                if (printerSettingsWindow == null || killSwitch.isKilled()) return false;
+                                if (printerSettingsWindow == null || killSwitch.isKillSignalReceived()) return false;
                                 
-                                // Step 5: Configure printer in settings window
-                                if (!configurePrinterInSettings(printerSettingsWindow) || killSwitch.isKilled()) return false;
+                                if (!configurePrinterInSettings(printerSettingsWindow) || killSwitch.isKillSignalReceived()) return false;
     
-                                // Step 6: Clean up and close windows
                                 if (!cleanupAndClose(scannedDocWindow)) return false;
                                 
                                 return true;
@@ -159,12 +118,10 @@ public class PrinterConfigurationHandler {
                     );
                     
                     if (success) {
-                        logger.info("Configuration completed successfully on attempt {}", currentAttempt);
+                        logger.info("Printer configuration completed successfully");
                         return true;
                     }
                     
-                    logger.warn("Configuration attempt {} failed, retrying...");
-                    attemptCleanup();
                     TimeUnit.MILLISECONDS.sleep(ApplicationConfig.RETRY_DELAY_MS);
                     
                 } catch (Exception e) {
