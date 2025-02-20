@@ -19,7 +19,6 @@ public class PrinterConfigurationPopupHandler {
     private final Pattern popupPattern;
     private final Region iconRegion;
     
-    // States for printer configuration
     public enum PrinterConfigState {
         DOCUMENT_SELECTION,
         CONTEXT_MENU,
@@ -32,61 +31,51 @@ public class PrinterConfigurationPopupHandler {
     private long lastPopupTime;
 
     public PrinterConfigurationPopupHandler(
-        WindowStateManager windowManager,
-        Region systmOneWindow,
-        Pattern popupPattern,
-        GlobalKillswitch killSwitch) {  
-    
-    this.windowManager = windowManager;
-    this.systmOneWindow = systmOneWindow;
-    this.popupPattern = popupPattern;
-    
-    // Initialize retry handler with printer-specific configurations
-    this.retryHandler = RetryOperationHandler.builder()
-            .maxAttempts(ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS)
-            .delayBetweenAttempts(ApplicationConfig.DEFAULT_RETRY_DELAY_MS)
-            .killSwitch(killSwitch)
-            .build();
-    
-    this.currentState = PrinterConfigState.DOCUMENT_SELECTION;
+            WindowStateManager windowManager,
+            Region systmOneWindow,
+            Pattern popupPattern,
+            GlobalKillswitch killSwitch) {
+        this.windowManager = windowManager;
+        this.systmOneWindow = systmOneWindow;
+        this.popupPattern = popupPattern;
+        
+        this.retryHandler = RetryOperationHandler.builder()
+                .maxAttempts(ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS)
+                .delayBetweenAttempts(ApplicationConfig.DEFAULT_RETRY_DELAY_MS)
+                .killSwitch(killSwitch)
+                .build();
+                
+        this.currentState = PrinterConfigState.DOCUMENT_SELECTION;
 
-        // Define popup detection region as middle quarter of screen
+        // Define popup detection region
         int screenWidth = systmOneWindow.w;
         int screenHeight = systmOneWindow.h;
         int quarterWidth = screenWidth / 4;
         int quarterHeight = screenHeight / 4;
         
         this.iconRegion = new Region(
-            systmOneWindow.x + quarterWidth,     // Start 1/4 in from left
-            systmOneWindow.y + quarterHeight,    // Start 1/4 down from top
-            quarterWidth * 2,                    // Middle half of width
-            quarterHeight * 2                    // Middle half of height
+            systmOneWindow.x + quarterWidth,
+            systmOneWindow.y + quarterHeight,
+            quarterWidth * 2,
+            quarterHeight * 2
         );
     }
 
     public boolean handlePopupIfPresent(PrinterConfigState returnToState) {
         try {
-            long startTime = System.currentTimeMillis();
-            
-            boolean popupFound = isPopupPresent();
-            if (!popupFound) {
-                return true; // No popup present
+            if (!isPopupPresent()) {
+                return true;
             }
 
-            logger.info("Popup detected during printer configuration in state: {}", currentState);
+            logger.info("Handling popup in state: {}", currentState);
             
-            // Dismiss popup with ESC
             systmOneWindow.type(Key.ESC);
             TimeUnit.MILLISECONDS.sleep(ApplicationConfig.POPUP_CLEANUP_DELAY_MS);
             
-            // Track popup handling
             wasPopupHandled = true;
             lastPopupTime = System.currentTimeMillis();
             
-            // Perform state-specific cleanup
             cleanupCurrentState();
-            
-            // Return to specified state
             return returnToState(returnToState);
             
         } catch (Exception e) {

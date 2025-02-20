@@ -17,7 +17,7 @@ public class RetryOperationHandler {
 
     private final int maxAttempts;
     private final long delayBetweenAttempts;
-    private final GlobalKillswitch killSwitch;  // Change to GlobalKillswitch
+    private final GlobalKillswitch killSwitch;
     
     public RetryOperationHandler(int maxAttempts, long delayBetweenAttempts, GlobalKillswitch killSwitch) {
         this.maxAttempts = maxAttempts;
@@ -33,6 +33,7 @@ public class RetryOperationHandler {
      * @param operationName Name of the operation for logging
      * @return true if operation succeeds, false otherwise
      */
+
     public boolean executeWithRetry(
             Supplier<Boolean> operation,
             Runnable cleanup,
@@ -42,24 +43,19 @@ public class RetryOperationHandler {
         boolean success = false;
         
         while (attempts < maxAttempts && !success) {
-            // Check killswitch before each attempt
-            if (killSwitch.isKillSignalReceived()) {  // Change to use isKillSignalReceived
-                logger.info("Kill switch activated during {} - aborting retry loop", operationName);
+            if (killSwitch.isKillSignalReceived()) {
+                logger.info("Kill switch activated during {} - aborting", operationName);
                 return false;
             }
 
             attempts++;
-            logger.info("Attempting {} (attempt {} of {})", 
-                    operationName, attempts, maxAttempts);
             
             try {
                 success = operation.get();
                 if (!success) {
-                    logger.warn("{} failed on attempt {}", operationName, attempts);
                     if (cleanup != null) {
                         cleanup.run();
                     }
-                    // Check killswitch before sleeping
                     if (killSwitch.isKillSignalReceived()) {
                         return false;
                     }
@@ -72,7 +68,6 @@ public class RetryOperationHandler {
                     cleanup.run();
                 }
                 try {
-                    // Check killswitch before sleeping
                     if (killSwitch.isKillSignalReceived()) {
                         return false;
                     }
@@ -107,7 +102,7 @@ public class RetryOperationHandler {
      public static class RetryOperationBuilder {
         private int maxAttempts = ApplicationConfig.DEFAULT_RETRY_ATTEMPTS;
         private long delayBetweenAttempts = ApplicationConfig.DEFAULT_RETRY_DELAY_MS;
-        private GlobalKillswitch killSwitch;  // Change to GlobalKillswitch
+        private GlobalKillswitch killSwitch;
         
         public RetryOperationBuilder maxAttempts(int maxAttempts) {
             this.maxAttempts = maxAttempts;
@@ -119,7 +114,7 @@ public class RetryOperationHandler {
             return this;
         }
 
-        public RetryOperationBuilder killSwitch(GlobalKillswitch killSwitch) {  // Change parameter type
+        public RetryOperationBuilder killSwitch(GlobalKillswitch killSwitch) {
             this.killSwitch = killSwitch;
             return this;
         }
