@@ -8,8 +8,8 @@ import java.time.format.DateTimeFormatter;
 public class ApplicationConfig {
     // Application constants
     public static final String APP_TITLE = "SystmOne GP:";
-    // public static final String IMAGE_DIR_PATH = "src/main/resources/images";
-    public static final String IMAGE_DIR_PATH = "resources/images";
+    public static final String IMAGE_DIR_PATH = "src/main/resources/images";
+    // public static final String IMAGE_DIR_PATH = "resources/images";
     public static final boolean AUTO_CONFIGURE_PDF_PRINTER = true; 
 
         // Path configuration
@@ -36,7 +36,7 @@ public class ApplicationConfig {
     public static final double DIALOG_TIMEOUT = 10.0; // in seconds
     public static final double MENU_TIMEOUT = 5.0;    // in seconds
     public static final int RETRY_DELAY_MS = 100;
-    public static final int BUTTON_CLICK_DELAY_MS = 100;
+    public static final int BUTTON_CLICK_DELAY_MS = 250;
 
     // Operation retry limits
     public static final int MAX_PRINT_MENU_ATTEMPTS = 3;     // Maximum attempts for print menu operation

@@ -204,46 +204,66 @@ public class PrinterConfigurationHandler {
             return null;
         }
     
-        try {
-            // Use OCR to find "Printer Settings" text
-            Match buttonMatch = buttonRegion.waitText("Printer Settings", ApplicationConfig.DIALOG_TIMEOUT);
-            
-            if (buttonMatch == null) {
-                logger.error("Could not find 'Printer Settings' button using text recognition");
-                return null;
+        // Progressive retry approach for first-time loading
+        Match buttonMatch = null;
+        int maxAttempts = 3;
+        int currentAttempt = 0;
+        double baseTimeout = ApplicationConfig.DIALOG_TIMEOUT;
+        
+        while (buttonMatch == null && currentAttempt < maxAttempts) {
+            try {
+                currentAttempt++;
+                // Increase timeout for each retry
+                double adjustedTimeout = baseTimeout * currentAttempt;
+                logger.debug("Attempt {} looking for printer settings button with {}ms timeout", 
+                    currentAttempt, adjustedTimeout);
+                
+                // Wait for text with progressively longer timeouts
+                buttonMatch = buttonRegion.waitText("Printer Settings", adjustedTimeout);
+                
+                if (buttonMatch != null) {
+                    break;
+                }
+                
+                // Short pause between attempts
+                TimeUnit.MILLISECONDS.sleep(1000);
+                
+            } catch (FindFailed e) {
+                logger.debug("Attempt {} failed to find button", currentAttempt);
+                if (currentAttempt >= maxAttempts) {
+                    logger.error("Could not find 'Printer Settings' button after {} attempts", maxAttempts);
+                    return null;
+                }
             }
+        }
     
-            // Check for popups before clicking
-            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-                return null;
-            }
-    
-            // Click the found text location
-            buttonMatch.click();
-            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.BUTTON_CLICK_DELAY_MS);
-    
-            // Check for popups after clicking
-            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-                return null;
-            }
-    
-            // Initialize and verify printer settings window
-            App printerSettingsWindow = new App("Actioned Scanned Image Printer Settings");
-            if (printerSettingsWindow.window() == null) {
-                logger.error("Printer settings window did not open after clicking text button");
-                return null;
-            }
-    
-            // Focus the new window
-            printerSettingsWindow.focus();
-            TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
-    
-            return printerSettingsWindow;
-    
-        } catch (FindFailed e) {
-            logger.error("Failed to find or click 'Printer Settings' text: {}", e.getMessage());
+        if (buttonMatch == null) {
+            logger.error("Could not find 'Printer Settings' button using text recognition");
             return null;
         }
+    
+        // Rest of the method remains the same
+        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+            return null;
+        }
+    
+        buttonMatch.click();
+        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.BUTTON_CLICK_DELAY_MS);
+    
+        if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
+            return null;
+        }
+    
+        App printerSettingsWindow = new App("Actioned Scanned Image Printer Settings");
+        if (printerSettingsWindow.window() == null) {
+            logger.error("Printer settings window did not open after clicking text button");
+            return null;
+        }
+    
+        printerSettingsWindow.focus();
+        TimeUnit.MILLISECONDS.sleep(ApplicationConfig.FOCUS_DELAY_MS);
+    
+        return printerSettingsWindow;
     }
     
     private Match selectInitialDocument() throws FindFailed {
