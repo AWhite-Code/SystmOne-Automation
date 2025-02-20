@@ -49,7 +49,7 @@ public class SystemInitialiser {
      * @return InitialisationResult containing either initialized components
      *         or a detailed error message if initialization fails
      */
-    public InitialisationResult initialise(GlobalKillswitch killSwitch) {  // Add parameter here
+    public InitialisationResult initialise(GlobalKillswitch killSwitch) {
         try {
             // Validate and load UI pattern images required for automation
             if (!initializeImageLibrary()) {
@@ -57,50 +57,35 @@ public class SystemInitialiser {
             }
        
             // Create automator with standard configuration and killswitch
-            SystmOneAutomator automator = createAutomator(killSwitch);  // Pass killSwitch here
+            logger.debug("About to create automator");
+            SystmOneAutomator automator = createAutomator(killSwitch);
             if (automator == null) {
                 return InitialisationResult.failed("Failed to create SystmOne automator");
             }
-       
-            // Ensure proper application window state
-            try {
-                automator.focus();
-            } catch (InterruptedException e) {
-                return InitialisationResult.failed("Failed to focus SystmOne window: " + e.getMessage());
-            }
-       
-            // Configure printer if enabled
-            // TODO: Make this configurable via settings file
-            if (ApplicationConfig.AUTO_CONFIGURE_PDF_PRINTER) {  // Add this setting to ApplicationConfig
-                try {
-                    if (!automator.configurePDFPrinter()) {
-                        logger.warn("Failed to configure PDF printer - manual setup may be required");
-                        // Continue anyway as this isn't critical
-                    }
-                } catch (FindFailed e) {
-                    logger.warn("Failed to configure PDF printer: " + e.getMessage());
-                    // Continue with initialization even if printer config fails
-                }
-            }
     
-            // Establish document storage structure
-            String outputFolder = initializeOutputDirectory();
-            if (outputFolder == null) {
-                return InitialisationResult.failed("Failed to create output directory");
-            }
+            // CRITICAL: Add detailed exception logging here
+            try {
+                logger.debug("About to create system components");
+                SystemComponents components = new SystemComponents(automator, initializeOutputDirectory());
+                logger.debug("System components created successfully");
+                
+                // Verify all required components are properly initialized
+                if (components.getUiHandler() == null || components.getPopupHandler() == null) {
+                    return InitialisationResult.failed("Failed to initialize all required components");
+                }
        
-            // Initialize core system component container
-            SystemComponents components = new SystemComponents(automator, outputFolder);
-               
-            // Verify all required components are properly initialized
-            if (components.getUiHandler() == null || components.getPopupHandler() == null) {
-                return InitialisationResult.failed("Failed to initialize all required components");
+                return InitialisationResult.succeeded(components);
+                
+            } catch (Exception e) {
+                // Log the full stack trace here
+                logger.error("Exception during component initialization: ", e);
+                throw e; // Let this propagate up
             }
-       
-            return InitialisationResult.succeeded(components);
        
         } catch (Exception e) {
-            return InitialisationResult.failed("Unexpected error during initialization: " + e.getMessage());
+            // Log the full stack trace for any other exceptions
+            logger.error("Critical error during initialization: ", e);
+            throw e; // Let this propagate up instead of wrapping in InitialisationResult
         }
     }
 
@@ -170,7 +155,8 @@ public class SystemInitialiser {
      * 
      * @return Configured SystmOneAutomator instance, or null if creation fails
      */
-    private SystmOneAutomator createAutomator(GlobalKillswitch killSwitch) {
+
+     private SystmOneAutomator createAutomator(GlobalKillswitch killSwitch) {
         try {
             if (killSwitch == null) {
                 logger.error("Null killSwitch provided to createAutomator");

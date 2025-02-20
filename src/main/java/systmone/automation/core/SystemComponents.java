@@ -4,6 +4,9 @@ import systmone.automation.ui.PopupHandler;
 import systmone.automation.ui.SystmOneAutomator;
 import systmone.automation.ui.UiStateHandler;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.sikuli.script.Region;
 
 /**
@@ -28,12 +31,12 @@ import org.sikuli.script.Region;
  * - Requires a valid output folder path for document storage
  */
 public class SystemComponents {
+    private static final Logger logger = LoggerFactory.getLogger(SystemComponents.class);
+
     // Core automation components
     private final SystmOneAutomator automator;
     private final UiStateHandler uiHandler;
     private final PopupHandler popupHandler;
-    
-    // System configuration
     private final String outputFolder;
 
     /**
@@ -54,7 +57,6 @@ public class SystemComponents {
             throw new IllegalArgumentException("Output folder path cannot be null or empty");
         }
 
-        // Cache the window region to prevent multiple lookups
         Region mainWindow = automator.getWindow();
         if (mainWindow == null) {
             throw new IllegalArgumentException("Could not get main window region from automator");
@@ -64,9 +66,10 @@ public class SystemComponents {
         this.automator = automator;
         this.outputFolder = outputFolder;
         
-        // Create dependent components in order
         this.popupHandler = createPopupHandler(mainWindow);
         this.uiHandler = createUiStateHandler(mainWindow, this.popupHandler);
+        
+        logger.debug("System components initialized successfully");
     }
 
     /**

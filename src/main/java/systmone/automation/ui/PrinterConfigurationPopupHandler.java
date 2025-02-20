@@ -4,6 +4,7 @@ import org.sikuli.script.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.killswitch.GlobalKillswitch;
 import systmone.automation.state.WindowStateManager;
 import systmone.automation.util.RetryOperationHandler;
 
@@ -31,20 +32,23 @@ public class PrinterConfigurationPopupHandler {
     private long lastPopupTime;
 
     public PrinterConfigurationPopupHandler(
-            WindowStateManager windowManager,
-            Region systmOneWindow,
-            Pattern popupPattern) {
-        this.windowManager = windowManager;
-        this.systmOneWindow = systmOneWindow;
-        this.popupPattern = popupPattern;
-        
-        // Initialize retry handler with printer-specific configurations
-        this.retryHandler = RetryOperationHandler.builder()
-                .maxAttempts(ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS)
-                .delayBetweenAttempts(ApplicationConfig.DEFAULT_RETRY_DELAY_MS)
-                .build();
-                
-        this.currentState = PrinterConfigState.DOCUMENT_SELECTION;
+        WindowStateManager windowManager,
+        Region systmOneWindow,
+        Pattern popupPattern,
+        GlobalKillswitch killSwitch) {  
+    
+    this.windowManager = windowManager;
+    this.systmOneWindow = systmOneWindow;
+    this.popupPattern = popupPattern;
+    
+    // Initialize retry handler with printer-specific configurations
+    this.retryHandler = RetryOperationHandler.builder()
+            .maxAttempts(ApplicationConfig.PRINTER_CONFIG_MAX_ATTEMPTS)
+            .delayBetweenAttempts(ApplicationConfig.DEFAULT_RETRY_DELAY_MS)
+            .killSwitch(killSwitch)
+            .build();
+    
+    this.currentState = PrinterConfigState.DOCUMENT_SELECTION;
 
         // Define popup detection region as middle quarter of screen
         int screenWidth = systmOneWindow.w;

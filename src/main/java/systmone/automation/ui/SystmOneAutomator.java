@@ -55,9 +55,13 @@ public class SystmOneAutomator {
      * @throws FindFailed if the SystmOne window or required patterns cannot be initialized
      */
     public SystmOneAutomator(double patternSimilarity, GlobalKillswitch killSwitch) throws FindFailed {
+        logger.debug("SystmOneAutomator constructor called with killSwitch: {}", killSwitch);
+        
         if (killSwitch == null) {
+            logger.error("Null killSwitch provided to SystmOneAutomator constructor");
             throw new IllegalArgumentException("KillSwitch must be provided");
         }
+        
         this.systmOne = initializeApp();
         this.systmOneWindow = systmOne.window();
         
@@ -79,6 +83,8 @@ public class SystmOneAutomator {
             popupHandler
         );
             
+        logger.debug("About to create PrinterConfigurationHandler with killSwitch: {}", killSwitch);
+        
         // Initialize printer configuration handler with killswitch and popup handling components
         this.printerConfigHandler = new PrinterConfigurationHandler(
             systmOne,
@@ -86,14 +92,16 @@ public class SystmOneAutomator {
             searchRegions,
             selectionBorderPattern,
             popupPattern,
-            killSwitch
+            killSwitch  // This seems correct
         );
         
+        logger.debug("PrinterConfigurationHandler created successfully");
+    
         if (systmOneWindow == null) {
             throw new FindFailed("Failed to initialize SystmOne window");
         }
     }
-
+    
     /**
      * Initializes the SystmOne application instance and verifies its window.
      * 

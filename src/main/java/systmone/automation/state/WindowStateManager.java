@@ -19,7 +19,19 @@ public class WindowStateManager {
     private App currentFocusedWindow;
     
     public WindowStateManager(App mainApp) {
-        this.mainApp = mainApp;
+        try {
+            if (mainApp == null) {
+                throw new IllegalArgumentException("Main app cannot be null");
+            }
+            if (mainApp.window() == null) {
+                throw new IllegalArgumentException("Main app window not accessible");
+            }
+            this.mainApp = mainApp;
+            logger.debug("WindowStateManager initialized with app: {}", mainApp);
+        } catch (Exception e) {
+            logger.error("Failed to initialize WindowStateManager: ", e);
+            throw e;
+        }
     }
 
     /**

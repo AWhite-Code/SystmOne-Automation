@@ -27,14 +27,27 @@ public class PrinterConfigurationHandler {
     private Match currentDocumentMatch;
 
     public PrinterConfigurationHandler(
-            App systmOne,
-            Region systmOneWindow,
-            SearchRegions searchRegions,
-            Pattern selectionBorderPattern,
-            Pattern popupPattern,
-            GlobalKillswitch killSwitch) {  // Change parameter type
+        App systmOne,
+        Region systmOneWindow,
+        SearchRegions searchRegions,
+        Pattern selectionBorderPattern,
+        Pattern popupPattern,
+        GlobalKillswitch killSwitch) {  
+    
+    logger.debug("PrinterConfigurationHandler constructor starting with killSwitch: {}", killSwitch);
+    
+    try {
+        // Log all parameters
+        logger.debug("Constructor parameters:");
+        logger.debug(" - systmOne: {}", systmOne);
+        logger.debug(" - systmOneWindow: {}", systmOneWindow);
+        logger.debug(" - searchRegions: {}", searchRegions);
+        logger.debug(" - selectionBorderPattern: {}", selectionBorderPattern);
+        logger.debug(" - popupPattern: {}", popupPattern);
+        logger.debug(" - killSwitch: {}", killSwitch);
         
         if (killSwitch == null) {
+            logger.error("KillSwitch is null in PrinterConfigurationHandler constructor");
             throw new IllegalArgumentException("KillSwitch must be provided");
         }
 
@@ -45,14 +58,38 @@ public class PrinterConfigurationHandler {
         this.popupPattern = popupPattern;
         this.killSwitch = killSwitch;
         
-        // Initialize infrastructure components
-        this.windowManager = new WindowStateManager(systmOne);
-        this.popupHandler = new PrinterConfigurationPopupHandler(
-            windowManager,
-            systmOneWindow,
-            popupPattern
-        );
+        logger.debug("About to initialize WindowStateManager");
+        
+        try {
+            this.windowManager = new WindowStateManager(systmOne);
+            logger.debug("WindowStateManager initialized successfully");
+        } catch (Exception e) {
+            logger.error("Failed to initialize WindowStateManager: ", e);
+            throw e;
+        }
+
+        logger.debug("About to initialize PrinterConfigurationPopupHandler");
+        
+        try {
+            this.popupHandler = new PrinterConfigurationPopupHandler(
+                windowManager,
+                systmOneWindow,
+                popupPattern,
+                killSwitch
+            );
+            logger.debug("PrinterConfigurationPopupHandler initialized successfully");
+        } catch (Exception e) {
+            logger.error("Failed to initialize PrinterConfigurationPopupHandler: ", e);
+            throw e;
+        }
+        
+        logger.debug("PrinterConfigurationHandler constructor completed successfully");
+        
+    } catch (Exception e) {
+        logger.error("Fatal error in PrinterConfigurationHandler constructor: ", e);
+        throw e;
     }
+}
 
     public boolean configurePDFPrinter() throws FindFailed {
         try {

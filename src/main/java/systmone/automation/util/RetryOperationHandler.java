@@ -3,6 +3,7 @@ package systmone.automation.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import systmone.automation.config.ApplicationConfig;
+import systmone.automation.killswitch.GlobalKillswitch;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -16,9 +17,9 @@ public class RetryOperationHandler {
 
     private final int maxAttempts;
     private final long delayBetweenAttempts;
-    private final AtomicBoolean killSwitch;  // Add killSwitch reference
+    private final GlobalKillswitch killSwitch;  // Change to GlobalKillswitch
     
-    public RetryOperationHandler(int maxAttempts, long delayBetweenAttempts, AtomicBoolean killSwitch) {
+    public RetryOperationHandler(int maxAttempts, long delayBetweenAttempts, GlobalKillswitch killSwitch) {
         this.maxAttempts = maxAttempts;
         this.delayBetweenAttempts = delayBetweenAttempts;
         this.killSwitch = killSwitch;
@@ -42,7 +43,7 @@ public class RetryOperationHandler {
         
         while (attempts < maxAttempts && !success) {
             // Check killswitch before each attempt
-            if (killSwitch.get()) {
+            if (killSwitch.isKillSignalReceived()) {  // Change to use isKillSignalReceived
                 logger.info("Kill switch activated during {} - aborting retry loop", operationName);
                 return false;
             }
@@ -59,7 +60,7 @@ public class RetryOperationHandler {
                         cleanup.run();
                     }
                     // Check killswitch before sleeping
-                    if (killSwitch.get()) {
+                    if (killSwitch.isKillSignalReceived()) {
                         return false;
                     }
                     Thread.sleep(delayBetweenAttempts);
@@ -72,7 +73,7 @@ public class RetryOperationHandler {
                 }
                 try {
                     // Check killswitch before sleeping
-                    if (killSwitch.get()) {
+                    if (killSwitch.isKillSignalReceived()) {
                         return false;
                     }
                     Thread.sleep(delayBetweenAttempts);
@@ -102,10 +103,11 @@ public class RetryOperationHandler {
     /**
      * Builder class for configuring retry operations with a fluent API.
      */
-    public static class RetryOperationBuilder {
+
+     public static class RetryOperationBuilder {
         private int maxAttempts = ApplicationConfig.DEFAULT_RETRY_ATTEMPTS;
         private long delayBetweenAttempts = ApplicationConfig.DEFAULT_RETRY_DELAY_MS;
-        private AtomicBoolean killSwitch;  // Add to builder
+        private GlobalKillswitch killSwitch;  // Change to GlobalKillswitch
         
         public RetryOperationBuilder maxAttempts(int maxAttempts) {
             this.maxAttempts = maxAttempts;
@@ -117,7 +119,7 @@ public class RetryOperationHandler {
             return this;
         }
 
-        public RetryOperationBuilder killSwitch(AtomicBoolean killSwitch) {
+        public RetryOperationBuilder killSwitch(GlobalKillswitch killSwitch) {  // Change parameter type
             this.killSwitch = killSwitch;
             return this;
         }

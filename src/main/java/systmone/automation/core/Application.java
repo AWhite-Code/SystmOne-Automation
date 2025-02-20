@@ -27,29 +27,33 @@ public class Application {
     public static void main(String[] args) {
         LogManager.initializeLogging();
         ProcessingStats stats = null;
+        boolean initializationSuccessful = false;  // Add this flag
     
         try {
-            // Initialize killswitch first with additional logging
+            // Initialize killswitch first
             try {
                 killswitch = GlobalKillswitch.initialize();
                 logger.info("Global killswitch initialized (F10 to terminate)");
                 logger.debug("KillSwitch signal state: {}", killswitch.getKillSignal().get());
             } catch (NativeHookException e) {
                 logger.error("Failed to initialize global killswitch: {}", e.getMessage());
-                System.exit(1);
+                return;  // Return instead of System.exit(1)
             }
     
-            Thread.sleep(100);  // 100ms delay
+            Thread.sleep(100);
     
             SystemInitialiser initialiser = new SystemInitialiser();
-
-            logger.debug("Passing killswitch signal to initialiser: {}", killswitch.getKillSignal().get());
+    
+            logger.debug("Passing killswitch to initialiser: {}", killswitch.getKillSignal().get());
             InitialisationResult initResult = initialiser.initialise(killswitch);
     
             if (!initResult.isSuccess()) {
                 logger.error("System initialization failed: {}", initResult.getErrorMessage());
-                System.exit(1);
+                return;  // Return instead of System.exit(1)
             }
+    
+            // Initialization successful at this point
+            initializationSuccessful = true;  // Set flag
     
             // Initialize document processor with required components
             SystemComponents components = initResult.getComponents();
@@ -66,23 +70,29 @@ public class Application {
             // Check if killswitch was triggered during processing
             if (killswitch.isKillSignalReceived()) {
                 logger.info("Kill signal received, initiating shutdown...");
-                System.exit(0);
+                return;  // Return instead of System.exit(0)
             }
     
         } catch (Exception e) {
             logger.error("Critical application failure: {}", e.getMessage(), e);
-            System.exit(1);
         } 
         finally {
             try {
                 if (killswitch != null) {
-                    killswitch.cleanup();
+                    // Only cleanup killswitch if initialization was successful 
+                    // or we've finished processing
+                    if (initializationSuccessful) {
+                        killswitch.cleanup();
+                    }
                 }
-                logger.info("Generating processing summary");
-                SummaryGenerator.generateProcessingSummary(stats);
+                // Only generate summary if we got to processing
+                if (initializationSuccessful) {
+                    logger.info("Generating processing summary");
+                    SummaryGenerator.generateProcessingSummary(stats);
+                }
                 logger.info("Application shutdown complete");
             } finally {
-                System.exit(0);  // Force complete shutdown
+                System.exit(initializationSuccessful ? 0 : 1);  // Exit with appropriate code
             }
         }
     }
