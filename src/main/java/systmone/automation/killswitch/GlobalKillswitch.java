@@ -33,6 +33,7 @@ public class GlobalKillswitch implements NativeKeyListener {
     private ProcessingStats currentStats;
     
     private static final String CRASHED_MARKER = "Crashed";
+    private static final String KILLED_MARKER = "Killed by User";
 
     /**
      * Private constructor to enforce singleton pattern.
@@ -66,12 +67,13 @@ public class GlobalKillswitch implements NativeKeyListener {
             instance = new GlobalKillswitch();
             GlobalScreen.addNativeKeyListener(instance);
             
-            // Register shutdown hook to catch crashes
+            // Register shutdown hook for crash handling
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 if (instance != null && !instance.isKillSignalReceived()) {
-                    // If we're shutting down but kill signal wasn't triggered, it's a crash
+                    int processedCount = (instance.currentStats != null) ? 
+                        instance.currentStats.getProcessedDocuments() : 0;
                     logger.error("Application crashed - finalizing logs");
-                    LogFileNameCreator.finalizeLog(CRASHED_MARKER);
+                    LogManager.finalizeLog(CRASHED_MARKER, processedCount);
                 }
             }));
             
@@ -90,13 +92,32 @@ public class GlobalKillswitch implements NativeKeyListener {
     public void nativeKeyPressed(NativeKeyEvent event) {
         if (event.getKeyCode() == NativeKeyEvent.VC_F5) {
             logger.info("Kill signal received (F5 pressed)");
+            
+            // First set the kill signal
             killSignal.set(true);
-            // Remove the stats reference here
-            LogManager.finalizeLog("Killed by User", 0);  // Default to 0 if killed during initialization
+            
+            // Small delay to allow any in-progress document to complete
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                // Ignore interruption
+            }
+            
+            // Now get the final count
+            int processedCount = 0;
+            if (currentStats != null) {
+                processedCount = currentStats.getProcessedDocuments();
+                logger.info("Retrieved final document count for kill signal: {}", processedCount);
+            }
+            
+            // Finalize log with actual document count and killed marker
+            LogManager.finalizeLog(KILLED_MARKER, processedCount);
         }
     }
 
     public void setCurrentStats(ProcessingStats stats) {
+        logger.info("Updating killswitch stats - Current processed count: {}", 
+            (stats != null ? stats.getProcessedDocuments() : "null"));
         this.currentStats = stats;
     }
 

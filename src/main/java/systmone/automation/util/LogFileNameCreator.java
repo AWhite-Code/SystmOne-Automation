@@ -21,8 +21,10 @@ public class LogFileNameCreator {
 
     public static void setDocumentCount(int count) {
         synchronized (lock) {
-            documentCount = count;
-            createNewFileName();
+            if (count >= 0) {
+                documentCount = count;
+                createNewFileName();
+            }
         }
     }
 
@@ -40,10 +42,10 @@ public class LogFileNameCreator {
             String date = startTime.format(DateTimeFormatter.ofPattern("d.M.yy"));
             String time = startTime.format(DateTimeFormatter.ofPattern("HH.mm.ss"));
             
-            String newFileName = String.format("%s - %s - %s%s", 
+            String newFileName = String.format("%s - %s - %d Documents%s", 
                 date, 
                 time,
-                documentCount > 0 ? documentCount + " Documents" : "0 Documents",
+                Math.max(0, documentCount),             // Ensure non-negative
                 status != null ? " - " + status : ""
             );
             
@@ -57,13 +59,12 @@ public class LogFileNameCreator {
             String date = startTime.format(DateTimeFormatter.ofPattern("d.M.yy"));
             String time = startTime.format(DateTimeFormatter.ofPattern("HH.mm.ss"));
             
-            String newFileName = String.format("%s - %s - %s", 
+            currentFileName = String.format("%s - %s - %s", 
                 date, 
                 time, 
                 documentCount > 0 ? documentCount + " Documents" : IN_PROGRESS_MARKER
             );
             
-            currentFileName = newFileName;
             verifyWritePermissions();
         }
     }

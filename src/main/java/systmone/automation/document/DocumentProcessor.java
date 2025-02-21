@@ -45,8 +45,9 @@ public class DocumentProcessor {
     private final SystmOneAutomator automator;
     private final UiStateHandler uiHandler;
     private final String outputFolder;
-    private final AtomicBoolean killSwitch;
+    private final AtomicBoolean killSignal;
     private final ProcessingStats stats;
+    private final GlobalKillswitch killSwitch; 
 
     /**
      * Constructor for the DocumentProcessor.
@@ -66,13 +67,17 @@ public class DocumentProcessor {
             this.automator = automator;
             this.uiHandler = uiHandler;
             this.outputFolder = outputFolder;
-            this.killSwitch = killSwitch.getKillSignal();  // Store the signal for internal use
+            this.killSwitch = killSwitch; // Store the full killswitch
+            this.killSignal = killSwitch.getKillSignal();  // Store the signal for internal use
             this.stats = new ProcessingStats();
+            
+            // Set the initial stats reference
+            killSwitch.setCurrentStats(this.stats);
             
             if (!uiHandler.initializeScrollbarTracking(automator.getSelectionBorderPattern())) {
                 logger.warn("Failed to initialize scrollbar tracking - will use basic verification");
             }
-        }
+    }
 
     /**
      * Orchestrates the complete document processing workflow.
@@ -87,24 +92,25 @@ public class DocumentProcessor {
      *
      * @return ProcessingStats containing detailed processing results
      */
+
     public ProcessingStats processDocuments() {
         System.out.println("DocumentProcessor: Starting document processing");
         logger.info("Starting document processing workflow");
         
-        // Remove pre-counting since we're counting as we go
         int failedMoveAttempts = 0;
         
-        while (!killSwitch.get() && failedMoveAttempts < 3) {
+        while (!killSignal.get() && failedMoveAttempts < 3) {
             try {
                 processSingleDocument(stats.getProcessedDocuments());
-                stats.setProcessedDocuments(stats.getProcessedDocuments() + 1);  // Increment right after processing
+                stats.setProcessedDocuments(stats.getProcessedDocuments() + 1);
                 
-                // Try to move to next document
+                // Update killswitch with latest stats after each document
+                killSwitch.setCurrentStats(stats);
+                
                 boolean moved = handleNavigation();
                 if (!moved) {
                     logger.info("Navigation failed - processing complete after {} documents", 
                         stats.getProcessedDocuments());
-                    // Set final count and break out
                     stats.setTotalDocuments(stats.getProcessedDocuments());
                     break;
                 }
@@ -116,13 +122,15 @@ public class DocumentProcessor {
             }
         }
     
-        if (killSwitch.get()) {
+        // Only finalize if we weren't killed
+        if (!killSignal.get()) {
+            System.out.println("DocumentProcessor: Processing completed normally, updating log with final count: " + stats.getTotalDocuments());
+            LogManager.finalizeLog("Completed", stats.getTotalDocuments());
+        } else {
             logger.info("Processing terminated by kill switch after {} documents", 
                 stats.getProcessedDocuments());
+            // Don't finalize here - let the killswitch handle it
         }
-
-        System.out.println("DocumentProcessor: Processing completed, updating log with final count: " + stats.getTotalDocuments());
-        LogManager.updateDocumentCount(stats.getTotalDocuments());
     
         return stats;
     }
