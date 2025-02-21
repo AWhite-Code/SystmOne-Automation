@@ -427,7 +427,7 @@ public class PrinterConfigurationHandler {
 
     private boolean configurePrinterInSettings(App printerSettingsWindow) throws FindFailed, InterruptedException {
         if (killSwitch.isKilled()) return false;
-
+    
         Region windowRegion = printerSettingsWindow.window();
         
         // Check for popups before starting configuration
@@ -446,27 +446,25 @@ public class PrinterConfigurationHandler {
         
         // Define search region for the dropdown arrow, with a small upward adjustment
         Region dropdownSearchRegion = new Region(
-            windowRegion.x + (columnWidth * 3),  // Start from 4th column
-            windowRegion.y + rowHeight - 20,     // Start from 2nd row, adjusted up slightly
-            columnWidth * 2,                     // Cover two columns width
-            rowHeight                            // Cover one row height
+            windowRegion.x + (columnWidth * 3),  
+            windowRegion.y + rowHeight - 20,     
+            columnWidth * 2,                     
+            rowHeight                            
         );
-
+    
         if (killSwitch.isKilled()) {
             attemptCleanup();
             return false;
         }
         
-        // Search for the dropdown arrow with reduced similarity threshold to account for UI variations
+        // Dropdown arrow pattern matching and interaction code remains the same...
         Pattern dropdownArrowPattern = new Pattern("dropdown_arrow.png")
             .similar(0.6f);
     
+        Screen screen = new Screen();  // Moved up for broader scope
+        
         try {
-            // Check for popups before dropdown interaction
-            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-                return false;
-            }
-            
+            // Previous dropdown interaction code remains the same...
             Match dropdownMatch = dropdownSearchRegion.find(dropdownArrowPattern);
             logger.info("Found dropdown at coordinates: ({}, {})", dropdownMatch.x, dropdownMatch.y);
             
@@ -476,11 +474,6 @@ public class PrinterConfigurationHandler {
             
             dropdownMatch.click();
             TimeUnit.MILLISECONDS.sleep(500);
-            
-            // Check for popups after dropdown click
-            if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-                return false;
-            }
             
             // Select the PDF printer
             windowRegion.type("Microsoft Print to PDF");
@@ -492,39 +485,49 @@ public class PrinterConfigurationHandler {
                 return false;
             }
             
-            logger.info("Looking for OK button...");
+            logger.info("Looking for OK button - preparing Alt+O sequence...");
             
-            // Define region for OK button in bottom half of window
-            Region buttonRegion = new Region(
-                windowRegion.x,                        
-                windowRegion.y + (windowRegion.h / 2), 
-                windowRegion.w,                        
-                windowRegion.h / 2                     
-            );
+            // First attempt with short pauses
+            screen.keyDown(Key.ALT);
+            TimeUnit.MILLISECONDS.sleep(10);  // Brief pause while holding Alt
             
-            try {
-                Match okButton = buttonRegion.waitText("Ok", 2);
-                logger.info("Found OK button, clicking...");
+            screen.type("o");  // Send the 'o' key
+            TimeUnit.MILLISECONDS.sleep(10);  // Brief pause before releasing Alt
+            
+            screen.keyUp(Key.ALT);
+            TimeUnit.MILLISECONDS.sleep(100); // Longer pause after the full sequence
+            
+            // Verify window state and try fallbacks if needed
+            if (printerSettingsWindow.window() != null) {
+                logger.warn("Window still open after Alt+O sequence, attempting fallback...");
                 
-                // Check for popups before clicking OK
-                if (!popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS)) {
-                    return false;
-                }
+                // Second attempt with longer pauses
+                TimeUnit.MILLISECONDS.sleep(200);  // Additional pause before retry
                 
-                okButton.click();
+                screen.keyDown(Key.ALT);
+                TimeUnit.MILLISECONDS.sleep(20);   // Longer pause on retry
+                screen.type("o");
+                TimeUnit.MILLISECONDS.sleep(20);
+                screen.keyUp(Key.ALT);
                 TimeUnit.MILLISECONDS.sleep(500);
-                
-                // Final popup check after clicking OK
-                return popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS);
-                
-            } catch (FindFailed e) {
-                logger.error("Could not find OK button");
-                return false;
             }
             
+            // Final popup check
+            return popupHandler.handlePopupIfPresent(PrinterConfigurationPopupHandler.PrinterConfigState.PRINTER_SETTINGS);
+            
         } catch (FindFailed e) {
-            logger.error("Could not find dropdown arrow: {}", e.getMessage());
+            logger.error("Failed to find UI element: {}", e.getMessage());
             return false;
+        } catch (Exception e) {
+            logger.error("Error during printer configuration: {}", e.getMessage());
+            return false;
+        } finally {
+            // Always ensure ALT key is released
+            try {
+                screen.keyUp(Key.ALT);
+            } catch (Exception releaseError) {
+                logger.warn("Error ensuring Alt key release: {}", releaseError.getMessage());
+            }
         }
     }
 }
